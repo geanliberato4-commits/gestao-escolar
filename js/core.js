@@ -191,8 +191,14 @@ function exportXLSX(linhas, nome) {
   XLSX.writeFile(wb, `${nome}-${hojeISO()}.xlsx`);
 }
 const CSS_DOC = () => new URL("css/style.css", location.href).href;
+const temaDe = (e) => (/mef/i.test(e?.logo || e?.nome || "") ? "mef" : "estacao");
+const urlAbs = (p) => (p ? new URL(p, location.href.split("#")[0]).href : "");
 function folha(escola, corpo, rodape = "") {
-  return `<div class="folha"><div class="cab"><div><b>${esc(escola?.nome || "")}</b><br><small>${esc([escola?.endereco, escola?.telefone].filter(Boolean).join(" · "))}</small></div><small>${escola?.cnpj ? "CNPJ " + esc(escola.cnpj) : ""}</small></div>${corpo}${rodape ? `<div class="rodape">${rodape}</div>` : ""}</div>`;
+  const logos = escola?.logos || (escola?.logo ? [escola] : []);
+  const logo = logos.map((x) => `<img class="cab-logo" src="${esc(urlAbs(x.logo))}" alt="${esc(x.nome)}">`).join("");
+  return `<div class="folha" style="--doc-cor:${esc(escola?.cor || "#222")}"><div class="cab">${logo}<div class="cab-txt"><b>${esc(escola?.razao_social || escola?.nome || "")}</b>
+    <small>${esc([escola?.endereco, escola?.cidade].filter(Boolean).join(" · "))}</small>
+    <small>${esc([escola?.telefone, escola?.email, escola?.cnpj && "CNPJ " + escola.cnpj].filter(Boolean).join(" · "))}</small></div></div>${corpo}${rodape ? `<div class="rodape">${rodape}</div>` : ""}</div>`;
 }
 function imprimir(html, titulo = "Documento") {
   const f = document.createElement("iframe"); f.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0";

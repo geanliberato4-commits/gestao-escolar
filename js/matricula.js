@@ -370,7 +370,7 @@ rota("matriculas", async (main, _, p) => {
 function relatorioPDF(titulo, linhas, { totais } = {}) {
   if (!linhas.length) return toast("Nada para imprimir.", true);
   const cols = Object.keys(linhas[0]);
-  const e = S.escola ? S.escolas.find((x) => x.id === S.escola) : { nome: S.escolas.map((x) => x.nome).join(" | ") };
+  const e = S.escola ? S.escolas.find((x) => x.id === S.escola) : { nome: S.escolas.map((x) => x.nome).join(" | "), logos: S.escolas.filter((x) => x.logo) };
   const html = folha(e, `<h2>${esc(titulo)}</h2><table><tr>${cols.map((c) => `<th>${esc(c)}</th>`).join("")}</tr>${linhas.map((l) => `<tr>${cols.map((c) => `<td>${esc(l[c])}</td>`).join("")}</tr>`).join("")}${totais ? `<tr>${cols.map((c) => `<th>${esc(totais[c] ?? "")}</th>`).join("")}</tr>` : ""}</table>`,
     `Emitido em ${dataHora(new Date())} por ${esc(S.perfil.nome)} · ${linhas.length} linha(s)`);
   verDocumento({ titulo, html });

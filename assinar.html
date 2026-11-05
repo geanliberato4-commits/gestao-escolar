@@ -7,11 +7,12 @@
 <meta name="referrer" content="no-referrer">
 <title>Assinatura de contrato escolar</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css?v=1">
+<link rel="stylesheet" href="css/style.css?v=2">
 </head>
 <body>
 <div class="pub"><div class="wrap">
-  <div class="top"><div class="ph-ic" style="width:46px;height:46px;border-radius:13px;background:var(--royal-soft);color:var(--royal2);display:grid;place-items:center"><i data-lucide="file-signature"></i></div>
+  <div style="height:6px;background:var(--faixa);border-radius:99px;margin-bottom:16px"></div>
+  <div class="top"><img id="logo" alt="" style="height:64px;max-width:200px;object-fit:contain;display:none">
     <div><h2 style="font-size:1.3rem" id="esc">Contrato escolar</h2><div class="muted small" id="sub">Carregando…</div></div></div>
   <div id="box"><div class="loading"><div class="spin"></div>Carregando contrato…</div></div>
 </div></div>
@@ -32,6 +33,8 @@ async function carregar() {
   if (error) return erro("Não foi possível abrir o contrato agora. Tente novamente em instantes.");
   if (data.erro) return erro(data.erro);
   $("#esc").textContent = data.escola; document.title = "Assinatura — " + data.escola;
+  document.body.dataset.tema = /mef/i.test(data.logo || data.escola) ? "mef" : "estacao";
+  if (data.logo) { $("#logo").src = data.logo; $("#logo").style.display = "block"; }
   $("#sub").textContent = `Aluno(a): ${data.aluno}`;
   if (data.status === "assinado") {
     $("#box").innerHTML = `<div class="msg ok"><i data-lucide="check-circle-2"></i><div><b>Contrato assinado</b> por ${esc(data.signatario)} em ${new Date(data.assinado_em).toLocaleString("pt-BR")}.<br>Código de verificação: <b>${esc(data.codigo)}</b>. Uma cópia fica arquivada na escola.</div></div>` +

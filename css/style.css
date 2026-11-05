@@ -1,11 +1,15 @@
 /* Gestão Escolar — Estação Criança | Colégio MEF
-   Mesma identidade visual do sistema de ponto. */
+   Cores tiradas das logos.
+   Estação Criança: azul #2B3990, vermelho #E8191F, amarelo #F9A51B, verde #8CC63F, ciano #29ABE2
+   Colégio MEF: verde-folha #5D8A5F, grafite #404041, preto #231F20
+   Visão conjunta (direção) = azul da Estação + faixa com as duas marcas; ao escolher a escola, o tema muda. */
 :root{
-  --navy:#0f1f4d; --navy2:#16296a; --navy3:#1d3585;
-  --royal:#2a5bd7; --royal2:#1e47b0; --royal-soft:#e6edfc;
-  --ok:#16a34a; --ok-soft:#e1f5e9; --err:#dc2626; --err-soft:#fde8e8; --warn:#d98a06; --warn-soft:#fff2d4;
-  --bg:#f3f6fb; --card:#fff; --ink:#18233d; --mut:#66758f; --line:#e2e8f2;
-  --r:14px; --sh:0 1px 2px rgba(15,31,77,.05),0 6px 18px rgba(15,31,77,.06);
+  --navy:#1a2160; --navy2:#232e7c; --navy3:#2B3990;
+  --royal:#2B3990; --royal2:#212c74; --royal-soft:#e8eaf7; --royal-rgb:43,57,144;
+  --ok:#3f8f2f; --ok-soft:#e6f4df; --err:#d7161c; --err-soft:#fde6e6; --warn:#d98a06; --warn-soft:#fff1d3;
+  --bg:#f4f5fa; --card:#fff; --ink:#1d2238; --mut:#666d86; --line:#e3e6f0;
+  --faixa:linear-gradient(90deg,#E8191F 0 20%,#F9A51B 20% 40%,#8CC63F 40% 60%,#29ABE2 60% 80%,#2B3990 80% 90%,#5D8A5F 90%);
+  --r:14px; --sh:0 1px 2px rgba(20,25,60,.05),0 6px 18px rgba(20,25,60,.06);
   --side:260px; --side-c:76px;
 }
 *{box-sizing:border-box}
@@ -18,7 +22,7 @@ h1,h2,h3{margin:0;letter-spacing:-.01em}
 i[data-lucide],svg.lucide{width:18px;height:18px;stroke-width:2;flex:none;vertical-align:-3px}
 
 /* ---------- botões ---------- */
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;background:var(--royal);color:#fff;border:0;border-radius:10px;padding:10px 16px;font-weight:600;cursor:pointer;transition:background .15s,transform .05s,box-shadow .15s;box-shadow:0 1px 2px rgba(42,91,215,.3)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;background:var(--royal);color:#fff;border:0;border-radius:10px;padding:10px 16px;font-weight:600;cursor:pointer;transition:background .15s,transform .05s,box-shadow .15s;box-shadow:0 1px 2px rgba(var(--royal-rgb),.3)}
 .btn:hover{background:var(--royal2)}
 .btn:active{transform:translateY(1px)}
 .btn.sec{background:#fff;color:var(--ink);border:1px solid var(--line);box-shadow:none}
@@ -28,12 +32,12 @@ i[data-lucide],svg.lucide{width:18px;height:18px;stroke-width:2;flex:none;vertic
 .btn.sm{padding:6px 11px;font-size:.84rem;border-radius:8px}
 .btn.big{width:100%;font-size:1.1rem;padding:15px}
 .btn:disabled{opacity:.55;cursor:not-allowed}
-.btn:focus-visible,.nav button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid rgba(42,91,215,.35);outline-offset:1px}
+.btn:focus-visible,.nav button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid rgba(var(--royal-rgb),.35);outline-offset:1px}
 
 /* ---------- formulários ---------- */
 label{display:block;font-size:.82rem;font-weight:600;color:#3a4866;margin:14px 0 6px}
 input,select,textarea{width:100%;border:1px solid #d3dcea;border-radius:10px;padding:10px 12px;background:#fff;transition:border-color .15s,box-shadow .15s}
-input:focus,select:focus,textarea:focus{border-color:var(--royal);box-shadow:0 0 0 3px rgba(42,91,215,.15);outline:0}
+input:focus,select:focus,textarea:focus{border-color:var(--royal);box-shadow:0 0 0 3px rgba(var(--royal-rgb),.15);outline:0}
 input:disabled{background:#f1f4f9;color:var(--mut)}
 .field{position:relative}
 .field>i,.field>svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:#8392ad;pointer-events:none}
@@ -43,7 +47,7 @@ input:disabled{background:#f1f4f9;color:var(--mut)}
 /* ---------- mensagens ---------- */
 .msg{display:flex;gap:10px;align-items:flex-start;padding:11px 13px;border-radius:10px;margin:12px 0;font-size:.92rem}
 .msg.err{background:var(--err-soft);color:#8f1d1d}.msg.ok{background:var(--ok-soft);color:#14663a}.msg.warn{background:var(--warn-soft);color:#7a4f00}
-.toast{position:fixed;right:18px;bottom:18px;background:var(--navy);color:#fff;padding:12px 16px;border-radius:12px;box-shadow:0 10px 30px rgba(15,31,77,.35);z-index:60;display:flex;gap:10px;align-items:center;animation:up .25s ease}
+.toast{position:fixed;right:18px;bottom:18px;background:var(--navy);color:#fff;padding:12px 16px;border-radius:12px;box-shadow:0 10px 30px rgba(20,25,60,.35);z-index:60;display:flex;gap:10px;align-items:center;animation:up .25s ease}
 .toast.err{background:var(--err)}
 @keyframes up{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 @keyframes fade{from{opacity:0}to{opacity:1}}
@@ -106,7 +110,7 @@ td.act{white-space:nowrap;text-align:right}
 .nav-label{font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:#7f90c4;padding:12px 12px 4px}
 .nav button{display:flex;align-items:center;gap:12px;background:none;border:0;color:inherit;padding:11px 12px;border-radius:10px;cursor:pointer;text-align:left;font-weight:500;transition:background .15s,color .15s;white-space:nowrap}
 .nav button:hover{background:rgba(255,255,255,.08);color:#fff}
-.nav button.on{background:var(--royal);color:#fff;box-shadow:0 4px 14px rgba(42,91,215,.45)}
+.nav button.on{background:var(--royal);color:#fff;box-shadow:0 4px 14px rgba(var(--royal-rgb),.4)}
 .side-foot{padding:12px;border-top:1px solid rgba(255,255,255,.1);display:flex;flex-direction:column;gap:8px}
 .user{display:flex;align-items:center;gap:10px;min-width:0}
 .user .avatar{background:rgba(255,255,255,.14);color:#fff}
@@ -182,7 +186,7 @@ main{padding:24px 22px 40px;max-width:1180px;width:100%;margin:0 auto;animation:
 .gsearch input{padding-left:38px;background:#f3f6fb;border-color:transparent}
 .gsearch input:focus{background:#fff}
 .gsearch>svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:#8392ad}
-.gres{position:absolute;left:0;right:0;top:calc(100% + 6px);background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 18px 40px rgba(15,31,77,.18);max-height:70vh;overflow:auto;z-index:45}
+.gres{position:absolute;left:0;right:0;top:calc(100% + 6px);background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 18px 40px rgba(20,25,60,.18);max-height:70vh;overflow:auto;z-index:45}
 .gres a{display:flex;gap:12px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line);color:inherit;text-decoration:none;cursor:pointer}
 .gres a:hover,.gres a.sel{background:#f3f7ff}
 .gres a:last-child{border-bottom:0}
@@ -281,3 +285,62 @@ td.num,th.num{text-align:right}
   .doc-prev{background:none;padding:0;max-height:none;overflow:visible}
   .folha{box-shadow:none;padding:0;max-width:none}
 }
+
+
+/* =================== Temas por escola =================== */
+body[data-tema="estacao"]{--faixa:linear-gradient(90deg,#E8191F 0 20%,#F9A51B 20% 40%,#8CC63F 40% 60%,#29ABE2 60% 80%,#2B3990 80%)}
+body[data-tema="mef"]{
+  --navy:#232425; --navy2:#2f3133; --navy3:#404041;
+  --royal:#4F7D52; --royal2:#3f6742; --royal-soft:#e7f0e6; --royal-rgb:79,125,82;
+  --bg:#f4f6f3; --line:#e2e7e0; --ink:#1f2420; --mut:#667066;
+  --faixa:linear-gradient(90deg,#5D8A5F 0 70%,#404041 70%);
+}
+.side{background:linear-gradient(180deg,var(--navy2),var(--navy))}
+.side::before{content:"";display:block;height:5px;background:var(--faixa);flex:none}
+.nav-label{color:rgba(255,255,255,.5)}
+.side{color:rgba(255,255,255,.78)}
+.user small{color:rgba(255,255,255,.55)}
+.brand-logos{background:#fff;border-radius:16px;padding:12px;display:flex;gap:12px;align-items:center;justify-content:center;min-height:74px;box-shadow:0 6px 18px rgba(0,0,0,.18)}
+.brand-logos img{max-height:58px;max-width:100%;object-fit:contain;display:block}
+.brand-logos.duas img{max-height:46px;max-width:47%}
+.brand-sub{color:rgba(255,255,255,.62);font-size:.72rem;text-align:center;margin-top:8px;letter-spacing:.06em;text-transform:uppercase}
+.shell.collapsed .brand-logos{padding:6px;min-height:0;border-radius:12px}
+.shell.collapsed .brand-logos img{max-height:30px}
+.shell.collapsed .brand-logos.duas img:last-child{display:none}
+.shell.collapsed .brand-sub{display:none}
+@media(max-width:860px){.shell.collapsed .brand-logos img{max-height:46px}.shell.collapsed .brand-logos.duas img:last-child{display:block}}
+.topbar{border-top:0}
+.topbar::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:3px;background:var(--faixa);opacity:.9}
+.page-head .ph-ic{background:var(--royal-soft);color:var(--royal)}
+.tag.blue{background:var(--royal-soft);color:var(--royal2)}
+.gres a:hover,.gres a.sel{background:var(--royal-soft)}
+.nav button.on{background:rgba(255,255,255,.14);box-shadow:inset 3px 0 0 #fff;color:#fff}
+body[data-tema="estacao"] .nav button.on{box-shadow:inset 3px 0 0 #F9A51B}
+body[data-tema="mef"] .nav button.on{box-shadow:inset 3px 0 0 #8fbf8f}
+.kpi .ic.blue{background:var(--royal-soft);color:var(--royal)}
+.tscola{display:inline-flex;align-items:center;gap:6px}
+.tscola i{width:9px;height:9px;border-radius:50%;display:inline-block}
+
+/* login com as duas marcas */
+.auth-art{background:#fff;color:var(--ink);position:relative;overflow:hidden;border-right:1px solid var(--line)}
+.auth-art::before{content:"";position:absolute;inset:0 0 auto 0;height:8px;background:var(--faixa);z-index:2}
+.auth-art::after{width:420px;height:420px;right:-160px;bottom:-160px;background:radial-gradient(circle,#e8eaf7 0,#e8eaf7 55%,transparent 56%)}
+.auth-art .blob2{position:absolute;left:-120px;top:-120px;width:320px;height:320px;border-radius:50%;background:#e7f0e6}
+.auth-logos{position:relative;z-index:1;display:flex;flex-direction:column;gap:26px;align-items:center;width:100%;max-width:420px}
+.auth-logos img{display:block;object-fit:contain}
+.auth-logos .le{width:100%;max-width:380px}
+.auth-logos .lm{height:170px}
+.auth-logos .sep{width:70%;height:1px;background:var(--line)}
+.auth-art h2{color:var(--ink);margin:26px 0 6px;position:relative;z-index:1}
+.auth-art p{color:var(--mut);position:relative;z-index:1}
+.auth-form{background:var(--bg);position:relative}
+.auth-box .mobile-logos{display:none;gap:16px;align-items:center;justify-content:center;margin-bottom:22px}
+.auth-box .mobile-logos img{max-height:64px;max-width:46%}
+@media(max-width:860px){.auth-box .mobile-logos{display:flex}}
+
+/* documentos: logo no cabeçalho */
+.folha .cab{align-items:center;gap:16px;border-bottom:3px solid var(--doc-cor,#222)}
+.folha .cab .cab-logo{height:62px;max-width:170px;object-fit:contain}
+.folha .cab .cab-txt{flex:1;text-align:right;line-height:1.35}
+.folha .cab .cab-txt b{font-size:15px;color:#111}
+.folha .cab .cab-txt small{display:block;color:#555}

@@ -54,6 +54,7 @@ async function entrarNoSistema(user) {
   const sel = $("#escolaSel");
   sel.innerHTML = (S.escolas.length > 1 ? `<option value="">${ehDirecao() ? "Visão conjunta (todas)" : "Todas as minhas escolas"}</option>` : "") + S.escolas.map((e) => `<option value="${e.id}">${esc(e.nome)}</option>`).join("");
   sel.value = S.escola;
+  aplicarTema();
   // esconde o que o perfil não usa
   $$(".nav button[data-m]").forEach((b) => b.classList.toggle("hidden", !pode(b.dataset.m)));
   $$(".nav button[data-d]").forEach((b) => b.classList.toggle("hidden", !(ehDirecao() || S.perfil.admin)));
@@ -61,9 +62,20 @@ async function entrarNoSistema(user) {
   render();
 }
 
-$("#escolaSel").addEventListener("change", (e) => { S.escola = e.target.value; try { localStorage.setItem("ge.escola", S.escola); } catch (_) {} render(); });
+$("#escolaSel").addEventListener("change", (e) => { S.escola = e.target.value; try { localStorage.setItem("ge.escola", S.escola); } catch (_) {} aplicarTema(); render(); });
+
+/* tema e logo conforme a escola escolhida no topo */
+function aplicarTema() {
+  const e = S.escolas.find((x) => x.id === S.escola);
+  document.body.dataset.tema = e ? temaDe(e) : "";
+  const box = $("#sideLogos");
+  const lista = e ? [e] : S.escolas.filter((x) => x.logo);
+  box.className = "brand-logos" + (lista.length > 1 ? " duas" : "");
+  box.innerHTML = lista.map((x) => `<img src="${esc(x.logo || "")}" alt="${esc(x.nome)}">`).join("");
+  $("#sideSub").textContent = e ? "Gestão Escolar" : "Gestão Escolar · visão conjunta";
+}
 $("#nav").addEventListener("click", (e) => { const b = e.target.closest("button[data-r]"); if (b) ir("#/" + b.dataset.r); });
-$("#sair").onclick = async () => { await sb.auth.signOut(); S.perfil = null; location.hash = ""; mostrarLogin(); };
+$("#sair").onclick = async () => { await sb.auth.signOut(); S.perfil = null; document.body.dataset.tema = ""; location.hash = ""; mostrarLogin(); };
 $("#recolher").onclick = () => { const c = $(".shell").classList.toggle("collapsed"); try { localStorage.setItem("ge.menu", c ? "c" : ""); } catch (_) {} };
 $("#burger").onclick = () => $(".shell").classList.add("open");
 $("#scrim").onclick = () => $(".shell").classList.remove("open");
