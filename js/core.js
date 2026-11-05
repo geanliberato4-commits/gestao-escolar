@@ -46,6 +46,34 @@ document.addEventListener("input", (e) => {
   if (m === "cep") { d = d.slice(0, 8); el.value = d.replace(/(\d{5})(\d)/, "$1-$2"); }
 });
 
+/* CEP: ao completar 8 dígitos busca rua, bairro e cidade (ViaCEP, com BrasilAPI de reserva) */
+async function buscarCEP(cep) {
+  try { const r = await fetch(`https://viacep.com.br/ws/${cep}/json/`); const j = await r.json(); if (!j.erro) return { rua: j.logradouro, bairro: j.bairro, cidade: j.localidade, uf: j.uf }; } catch (_) {}
+  try { const r = await fetch(`https://brasilapi.com.br/api/cep/v1/${cep}`); if (r.ok) { const j = await r.json(); return { rua: j.street, bairro: j.neighborhood, cidade: j.city, uf: j.state }; } } catch (_) {}
+  return null;
+}
+document.addEventListener("input", async (e) => {
+  const el = e.target; if (el.dataset?.mask !== "cep") return;
+  const cep = soDig(el.value); if (cep.length !== 8 || el.dataset.ultimo === cep) return;
+  el.dataset.ultimo = cep;
+  const box = el.closest(".grid") || el.closest(".card") || document;
+  const campo = (n) => $(`[name="${n}"]`, box);
+  el.style.backgroundImage = "linear-gradient(90deg,#eef1f8,#fff)";
+  const d = await buscarCEP(cep);
+  el.style.backgroundImage = "";
+  if (soDig(el.value) !== cep) return;
+  if (!d) { toast("CEP não encontrado. Preencha o endereço manualmente.", true); return; }
+  const temUF = !!campo("uf");
+  const end = campo("endereco");
+  if (end && d.rua && (!end.value.trim() || end.dataset.auto === "1")) { end.value = d.rua + ", "; end.dataset.auto = "1"; }
+  if (campo("bairro") && d.bairro) campo("bairro").value = d.bairro;
+  if (campo("cidade") && d.cidade) campo("cidade").value = temUF ? d.cidade : `${d.cidade}/${d.uf}`;
+  if (temUF && d.uf) campo("uf").value = d.uf;
+  if (end) { end.focus(); end.setSelectionRange(end.value.length, end.value.length); }
+  toast("Endereço preenchido pelo CEP. Complete o número.");
+});
+document.addEventListener("input", (e) => { if (e.target.name === "endereco" && e.isTrusted) e.target.dataset.auto = ""; }, true);
+
 /* ------------------------------------------------------------------ constantes */
 const STATUS_MAT = {
   em_andamento: ["Em andamento", "blue"], aguardando_documentos: ["Aguardando documentos", "warn"],
