@@ -6,9 +6,15 @@
 /* ================================ CONTRATOS ================================ */
 const linkAssinatura = (token) => new URL("assinar.html?t=" + token, location.href.split("#")[0]).href;
 
+const ehPapel = (c) => c?.evidencias?.metodo === "papel";
 function certificadoHTML(c) {
   if (c.status !== "assinado") return "";
   const ev = c.evidencias || {};
+  if (ehPapel(c)) return `<div class="cert"><h4>Contrato assinado em papel</h4>
+    <b>Assinado por:</b> ${esc(c.signatario_nome || "—")}${c.signatario_cpf ? " — CPF " + esc(fmtCPF(c.signatario_cpf)) : ""}<br>
+    <b>Data da assinatura:</b> ${esc(dataBR((c.assinado_em || "").slice(0, 10)))}<br>
+    <b>Registrado no sistema por:</b> ${esc(ev.registrado_por || "")} em ${esc(dataHora(ev.registrado_em))}<br>
+    A via original assinada fica no arquivo físico da escola${c.documento_id ? "; a via digitalizada está anexada na ficha do aluno" : ""}.</div>`;
   return `<div class="cert"><h4>Registro de assinatura eletrônica</h4>
     <b>Signatário:</b> ${esc(c.signatario_nome)} — CPF ${esc(fmtCPF(c.signatario_cpf))}${c.signatario_email ? " — " + esc(c.signatario_email) : ""}<br>
     <b>Data/hora:</b> ${esc(new Date(c.assinado_em).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" }))} (horário de Brasília)<br>
@@ -54,7 +60,8 @@ async function abrirContrato(id, depois) {
     extras.push({ label: "Enviar para assinatura", icon: "send", onClick: async () => { await enviarParaAssinatura(c, depois); } });
   }
   if (edit && c.status === "aguardando") extras.push({ label: "Reenviar link", icon: "send", cls: "sec", onClick: async () => { compartilharLink(c); } });
-  if (c.status === "assinado") extras.push({ label: c.documento_id ? "Abrir PDF arquivado" : "Arquivar PDF assinado", icon: "archive", cls: "sec", close: false, onClick: async () => {
+  if (c.status === "assinado" && ehPapel(c) && !c.documento_id) extras.push({ label: "Anexar via digitalizada", icon: "upload", cls: "sec", onClick: async () => anexarViaPapel(c, depois) });
+  else if (c.status === "assinado") extras.push({ label: c.documento_id ? (ehPapel(c) ? "Abrir via digitalizada" : "Abrir PDF arquivado") : "Arquivar PDF assinado", icon: "archive", cls: "sec", close: false, onClick: async () => {
     if (c.documento_id) { const d = await q(sb.from("documentos").select("*").eq("id", c.documento_id).single()); abrirArquivo(d); }
     else { await arquivarContratoAssinado(c); depois && depois(); }
     return false;
@@ -99,19 +106,67 @@ async function arquivarContratoAssinado(c, silencioso) {
   return silencioso ? fn().catch((e) => console.warn("arquivo automático", e)) : tenta(fn, "PDF assinado arquivado na ficha.");
 }
 /* guarda automaticamente os contratos assinados ainda não arquivados */
-async function autoArquivar(lista) { for (const c of lista.filter((x) => x.status === "assinado" && !x.documento_id)) await arquivarContratoAssinado(c, true); }
+async function autoArquivar(lista) { for (const c of lista.filter((x) => x.status === "assinado" && !x.documento_id && !ehPapel(x))) await arquivarContratoAssinado(c, true); }
+
+/* contrato que já foi assinado no papel (alunos antigos ou assinatura presencial) */
+async function registrarPapel({ mat, data, signatario_nome, signatario_cpf, arquivo, titulo }) {
+  const t = titulo || `Contrato ${mat.ano_letivo} — ${mat.aluno_nome || ""} (assinado em papel)`;
+  let doc = null;
+  if (arquivo) doc = await guardarArquivo({ aluno_id: mat.aluno_id, escola_id: mat.escola_id, categoria: "contrato_assinado", titulo: t, ano: mat.ano_letivo, blob: arquivo, nomeArq: arquivo.name, mime: arquivo.type });
+  const c = await q(sb.from("contratos").insert({
+    matricula_id: mat.id, aluno_id: mat.aluno_id, escola_id: mat.escola_id, titulo: t,
+    conteudo: `<div class="folha"><h2 class="titulo-doc">CONTRATO DE PRESTAÇÃO DE SERVIÇOS EDUCACIONAIS — ${esc(mat.ano_letivo)}</h2><p>Contrato assinado fisicamente em ${esc(dataBR(data))}${signatario_nome ? " por " + esc(signatario_nome) : ""}. O texto válido é o da via em papel arquivada na escola${doc ? ", digitalizada e anexada à ficha do aluno" : ""}.</p></div>`,
+    status: "assinado", assinado_em: data + "T12:00:00-03:00", signatario_nome: signatario_nome || null, signatario_cpf: soDig(signatario_cpf) || null,
+    documento_id: doc?.id || null, evidencias: { metodo: "papel", registrado_por: S.perfil.nome, registrado_em: new Date().toISOString() },
+  }).select().single());
+  await sb.from("matriculas").update({ status: "concluida" }).eq("id", mat.id).in("status", ["em_andamento", "aguardando_assinatura"]);
+  return c;
+}
+function modalContratoPapel(a, mats, depois) {
+  const validas = mats.filter((m) => m.status !== "cancelada");
+  if (!validas.length) return toast("O aluno não tem matrícula para vincular o contrato.", true);
+  modal({
+    title: "Registrar contrato já assinado (papel)", size: "lg",
+    body: `<p class="muted">Use para contratos assinados fisicamente. A via original continua no arquivo da escola; anexe a digitalização (pode ser depois).</p><div class="grid">
+      <div class="c6"><label class="req">Matrícula</label><select name="mat">${opts(validas.map((m) => [m.id, `${m.ano_letivo} · ${m.serie}`]))}</select></div>
+      <div class="c6"><label class="req">Data da assinatura</label><input type="date" name="data" value="${hojeISO()}"></div>
+      <div class="c6"><label>Assinado por</label><input name="nome" value="${esc(validas[0].resp_nome || "")}"></div>
+      <div class="c6"><label>CPF de quem assinou</label><input name="cpf" data-mask="cpf"></div>
+      <div><label>Via digitalizada (PDF, JPG ou PNG)</label><input type="file" name="arq" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"></div></div>`,
+    acts: [{ label: "Cancelar", cls: "sec" }, { label: "Registrar contrato", onClick: async (r) => {
+      const mat = validas.find((m) => m.id === $('[name="mat"]', r).value), data = $('[name="data"]', r).value, arq = $('[name="arq"]', r).files[0];
+      if (!data) { toast("Informe a data da assinatura.", true); return false; }
+      if (arq && (!/^(application\/pdf|image\/(jpeg|png))$/.test(arq.type) || arq.size > 10485760)) { toast("Arquivo deve ser PDF, JPG ou PNG de até 10 MB.", true); return false; }
+      const ok = await tenta(() => registrarPapel({ mat: { ...mat, aluno_nome: a.nome }, data, signatario_nome: $('[name="nome"]', r).value.trim(), signatario_cpf: $('[name="cpf"]', r).value, arquivo: arq }), "Contrato em papel registrado.");
+      if (ok === undefined) return false; depois && depois(); } }],
+  });
+}
+async function anexarViaPapel(c, depois) {
+  const inp = document.createElement("input"); inp.type = "file"; inp.accept = ".pdf,.jpg,.jpeg,.png";
+  inp.onchange = async () => {
+    const f = inp.files[0]; if (!f) return;
+    await tenta(async () => {
+      const d = await guardarArquivo({ aluno_id: c.aluno_id, escola_id: c.escola_id, categoria: "contrato_assinado", titulo: c.titulo, ano: Number(c.titulo.match(/(\d{4})/)?.[1]) || S.anoAtual, blob: f, nomeArq: f.name, mime: f.type });
+      await q(sb.from("contratos").update({ documento_id: d.id }).eq("id", c.id));
+    }, "Via digitalizada anexada.");
+    depois && depois();
+  };
+  inp.click();
+}
 
 async function listaContratosAluno(box, a, mats) {
   const cs = await q(sb.from("contratos").select("*").eq("aluno_id", a.id).order("created_at", { ascending: false }));
   const edit = pode("contratos") || pode("matricula");
   const ativas = mats.filter((m) => !["cancelada", "transferida"].includes(m.status));
-  box.innerHTML = `<div class="row" style="margin-bottom:12px">${edit && ativas.length ? `<select id="gcMat" style="width:auto">${opts(ativas.map((m) => [m.id, `Matrícula ${m.ano_letivo} · ${m.serie}`]))}</select><button class="btn" id="gc"><i data-lucide="file-plus"></i>Gerar contrato</button>` : ""}</div>` +
+  box.innerHTML = `<div class="row" style="margin-bottom:12px">${edit && ativas.length ? `<select id="gcMat" style="width:auto">${opts(ativas.map((m) => [m.id, `Matrícula ${m.ano_letivo} · ${m.serie}`]))}</select><button class="btn" id="gc"><i data-lucide="file-plus"></i>Gerar contrato</button>` : ""}
+    ${edit && mats.length ? `<button class="btn sec" id="gcPapel"><i data-lucide="file-check"></i>Registrar contrato já assinado (papel)</button>` : ""}</div>` +
     (cs.length ? `<div class="scroll"><table><thead><tr><th>Contrato</th><th>Situação</th><th>Gerado</th><th>Assinatura</th><th></th></tr></thead><tbody>
     ${cs.map((c) => `<tr><td><b>${esc(c.titulo)}</b><div class="small muted">por ${esc(c.gerado_por || "")}</div></td><td>${tag(STATUS_CON, c.status)}</td><td class="small">${dataHora(c.created_at)}</td>
-      <td class="small">${c.status === "assinado" ? `${esc(c.signatario_nome)}<br>${dataHora(c.assinado_em)}` : c.status === "aguardando" ? `Enviado ${dataHora(c.enviado_em)}<br>expira ${dataBR((c.token_expira || "").slice(0, 10))}` : c.cancelado_motivo ? esc(c.cancelado_motivo) : ""}</td>
+      <td class="small">${c.status === "assinado" ? `${esc(c.signatario_nome || "")}<br>${ehPapel(c) ? dataBR(c.assinado_em.slice(0, 10)) + ' <span class="tag">papel</span>' + (c.documento_id ? "" : ' <span class="tag warn">sem digitalização</span>') : dataHora(c.assinado_em)}` : c.status === "aguardando" ? `Enviado ${dataHora(c.enviado_em)}<br>expira ${dataBR((c.token_expira || "").slice(0, 10))}` : c.cancelado_motivo ? esc(c.cancelado_motivo) : ""}</td>
       <td class="act"><button class="btn sm sec" data-c="${c.id}"><i data-lucide="eye"></i>Abrir</button></td></tr>`).join("")}</tbody></table></div>` : vazio("Nenhum contrato gerado.", "file-signature"));
   $$("[data-c]", box).forEach((b) => (b.onclick = () => abrirContrato(b.dataset.c, () => render())));
   if ($("#gc", box)) $("#gc", box).onclick = () => gerarContrato($("#gcMat", box).value);
+  if ($("#gcPapel", box)) $("#gcPapel", box).onclick = () => modalContratoPapel(a, mats, () => render());
   icons(); autoArquivar(cs);
 }
 
