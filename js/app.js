@@ -75,6 +75,20 @@ function aplicarTema() {
   $("#sideSub").textContent = e ? "Gestão Escolar" : "Gestão Escolar · visão conjunta";
 }
 $("#nav").addEventListener("click", (e) => { const b = e.target.closest("button[data-r]"); if (b) ir("#/" + b.dataset.r); });
+$("#minhaSenha").onclick = () => modal({
+  title: "Trocar minha senha",
+  body: `<p class="muted">Use pelo menos 8 caracteres, misturando letras e números.</p>
+    <label>Nova senha</label><input type="password" name="s1" autocomplete="new-password">
+    <label>Repita a nova senha</label><input type="password" name="s2" autocomplete="new-password">`,
+  acts: [{ label: "Cancelar", cls: "sec" }, { label: "Salvar nova senha", onClick: async (r) => {
+    const s1 = $('[name="s1"]', r).value, s2 = $('[name="s2"]', r).value;
+    if (s1.length < 8) { toast("A senha precisa ter pelo menos 8 caracteres.", true); return false; }
+    if (s1 !== s2) { toast("As duas senhas não são iguais.", true); return false; }
+    const { error } = await sb.auth.updateUser({ password: s1 });
+    if (error) { toast(/different|same/i.test(error.message) ? "A nova senha precisa ser diferente da atual." : error.message, true); return false; }
+    toast("Senha alterada.");
+  } }],
+});
 $("#sair").onclick = async () => { await sb.auth.signOut(); S.perfil = null; document.body.dataset.tema = ""; location.hash = ""; mostrarLogin(); };
 $("#recolher").onclick = () => { const c = $(".shell").classList.toggle("collapsed"); try { localStorage.setItem("ge.menu", c ? "c" : ""); } catch (_) {} };
 $("#burger").onclick = () => $(".shell").classList.add("open");
