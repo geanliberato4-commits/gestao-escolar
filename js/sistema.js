@@ -19,7 +19,7 @@ rota("painel", async (main) => {
   const pend = mats.filter((m) => ["em_andamento", "aguardando_documentos", "aguardando_assinatura", "rematricula_pendente"].includes(m.status));
   const vagas = (a) => turmas.filter((t) => t.ano_letivo === a).reduce((s, t) => s + Math.max(0, t.vagas), 0);
   const lot = turmas.filter((t) => t.vagas <= 0 && t.ano_letivo >= ano);
-  const k = (ic, cor, v, t, href) => `<a class="card kpi" style="text-decoration:none;color:inherit" href="${href}"><div class="ic ${cor}"><i data-lucide="${ic}"></i></div><div><b>${v}</b><span>${t}</span></div></a>`;
+  const k = (ic, cor, v, t, href) => kpiCard({ ic, cor, valor: v, rotulo: t, href, dinheiro: String(v).startsWith("R$") });
   const recMes = parc.filter((p) => p.data_pagamento && p.data_pagamento >= mesIni).reduce((s, p) => s + Number(p.valor_pago), 0);
   const venc = parc.filter((p) => p.situacao === "atrasado").reduce((s, p) => s + Number(p.em_aberto), 0);
   const recentes = [...mats].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 8);

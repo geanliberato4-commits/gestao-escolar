@@ -333,7 +333,7 @@ rota("matriculas", async (main, _, p) => {
   const cap = turmas.reduce((s, t) => s + t.capacidade, 0);
   const lot = turmas.filter((t) => t.vagas <= 0).length;
   const espT = (t) => esp.filter((x) => x.turma_id === t.id || (!x.turma_id && x.serie === t.serie && x.escola_id === t.escola_id)).length;
-  const kpi = (ic, cor, v, t) => `<div class="card kpi"><div class="ic ${cor}"><i data-lucide="${ic}"></i></div><div><b>${v}</b><span>${t}</span></div></div>`;
+  const kpi = (ic, cor, v, t) => kpiCard({ ic, cor, valor: v, rotulo: t });
   const porEscola = S.escolas.filter((e) => !S.escola || e.id === S.escola).map((e) => {
     const m = ativos.filter((x) => x.escola_id === e.id), tt = turmas.filter((t) => t.escola_id === e.id), c = tt.reduce((s, t) => s + t.capacidade, 0);
     return `<tr><td><b>${esc(e.nome)}</b></td><td class="num">${m.length}</td><td class="num">${m.filter((x) => x.tipo === "nova").length}</td><td class="num">${m.filter((x) => x.tipo === "rematricula").length}</td><td class="num">${c}</td><td class="num">${c - m.filter((x) => x.turma_id).length}</td></tr>`;

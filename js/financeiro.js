@@ -151,14 +151,16 @@ rota("financeiro", async (main, _, p) => {
       && (!sit || (sit === "aberto" ? ["pendente", "atrasado", "parcial"].includes(x.situacao) : sit === "semboleto" ? !x.boleto_emitido && x.status !== "cancelada" && x.situacao !== "pago" : sit === "semnf" ? !x.nf_emitida && Number(x.valor_pago) > 0 && x.status !== "cancelada" : x.situacao === sit))
       && (!txt || normal(x.aluno_nome + " " + (x.resp_nome || "")).includes(txt)));
     const blocos = (S.escola || familia ? [] : S.escolas.map((e) => [e.nome, vis.filter((x) => x.escola_id === e.id)])).concat([[S.escola ? escolaNome(S.escola) : familia ? "Família" : "Consolidado", vis]]);
-    $("#fKpis").innerHTML = blocos.map(([nome, ps]) => { const t = resumo(ps); return `<div class="card" style="margin-bottom:12px"><h3>${esc(nome)}</h3><div class="kpis" style="margin:10px 0 0">
-      <div class="kpi"><div class="ic blue"><i data-lucide="calendar"></i></div><div><b class="money">${money(t.previsto)}</b><span>Previsto</span></div></div>
-      <div class="kpi"><div class="ic green"><i data-lucide="check-circle-2"></i></div><div><b class="money">${money(t.recebido)}</b><span>Recebido</span></div></div>
-      <div class="kpi"><div class="ic amber"><i data-lucide="clock"></i></div><div><b class="money">${money(t.aberto)}</b><span>Em aberto</span></div></div>
-      <div class="kpi"><div class="ic red"><i data-lucide="alert-triangle"></i></div><div><b class="money">${money(t.vencido)}</b><span>Vencido · ${t.inad} inadimplente(s)</span></div></div>
-      <div class="kpi"><div class="ic navy"><i data-lucide="receipt"></i></div><div><b>${t.bolEm}<span style="font-size:.9rem;color:var(--mut)"> / ${t.bolPend} pend.</span></b><span>Boletos emitidos</span></div></div>
-      <div class="kpi"><div class="ic navy"><i data-lucide="file-check-2"></i></div><div><b>${t.nfEm}<span style="font-size:.9rem;color:var(--mut)"> / ${t.nfPend} pend.</span></b><span>Notas emitidas</span></div></div>
-      </div></div>`; }).join("");
+    $("#fKpis").innerHTML = blocos.map(([nome, ps], i) => { const t = resumo(ps); const esc_ = S.escolas.find((e) => e.nome === nome);
+      return `<section class="bloco${i === blocos.length - 1 && blocos.length > 1 ? " consolidado" : ""}"><header class="bloco-h">${esc_?.logo ? `<img src="${esc(esc_.logo)}" alt="">` : '<i data-lucide="layers"></i>'}<h3>${esc(nome)}</h3><span class="muted small">${t.n} parcela(s)</span></header>
+      <div class="kpis">
+        ${kpiCard({ ic: "calendar", cor: "blue", valor: money(t.previsto), rotulo: "Previsto", dinheiro: true })}
+        ${kpiCard({ ic: "check-circle-2", cor: "green", valor: money(t.recebido), rotulo: "Recebido", detalhe: t.previsto ? Math.round(t.recebido / t.previsto * 100) + "% do previsto" : "", dinheiro: true })}
+        ${kpiCard({ ic: "clock", cor: "amber", valor: money(t.aberto), rotulo: "Em aberto", dinheiro: true })}
+        ${kpiCard({ ic: "alert-triangle", cor: "red", valor: money(t.vencido), rotulo: "Vencido", detalhe: `${t.inad} inadimplente(s)`, dinheiro: true })}
+        ${kpiCard({ ic: "receipt", cor: "navy", valor: t.bolEm, rotulo: "Boletos emitidos", detalhe: `${t.bolPend} pendente(s)` })}
+        ${kpiCard({ ic: "file-check-2", cor: "navy", valor: t.nfEm, rotulo: "Notas emitidas", detalhe: `${t.nfPend} pendente(s)` })}
+      </div></section>`; }).join("");
     $("#fCount").textContent = `${vis.length} parcela(s)`;
     painelParcelas($("#fTab"), vis.slice(0, 600), { selecionavel: true, mostrarAluno: true, recarregar: recarregar });
     if (vis.length > 600) $("#fTab").insertAdjacentHTML("beforeend", `<p class="muted small">Mostrando 600 de ${vis.length}. Use os filtros ou exporte para Excel.</p>`);

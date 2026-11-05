@@ -135,6 +135,16 @@ function confirmar(msg, { titulo = "Confirmar", ok = "Confirmar", perigo = false
     obs.observe($("#modalRoot"), { childList: true });
   });
 }
+/* indicador (card de número) padronizado: kpiCard({ic, cor, valor, rotulo, detalhe, href, dinheiro}) */
+function kpiCard({ ic, cor = "blue", valor, rotulo, detalhe = "", href = "", dinheiro = false }) {
+  const tag_ = href ? "a" : "div";
+  return `<${tag_} class="card kpi k-${cor}"${href ? ` href="${esc(href)}"` : ""}>
+    <div class="ic ${cor}"><i data-lucide="${ic}"></i></div>
+    <div class="kv-num${dinheiro ? " money" : ""}" title="${esc(valor)}">${esc(valor)}</div>
+    <div class="kv-rot">${esc(rotulo)}</div>
+    ${detalhe ? `<div class="kv-det">${esc(detalhe)}</div>` : ""}
+  </${tag_}>`;
+}
 const carregando = (txt = "Carregando…") => `<div class="loading"><div class="spin"></div>${esc(txt)}</div>`;
 const vazio = (txt, ic = "inbox") => `<div class="empty"><i data-lucide="${ic}"></i>${esc(txt)}</div>`;
 const pageHead = (ic, titulo, sub, extra = "") => `<div class="page-head"><div class="ph-ic"><i data-lucide="${ic}"></i></div><div class="ph-t"><h2>${esc(titulo)}</h2>${sub ? `<p>${esc(sub)}</p>` : ""}</div>${extra}</div>`;
