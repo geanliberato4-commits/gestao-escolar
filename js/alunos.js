@@ -15,6 +15,7 @@ function formAluno(a = {}, { escolaFixa } = {}) {
     <div class="c4"><label>Naturalidade</label><input name="naturalidade" value="${esc(a.naturalidade)}" placeholder="Cidade/UF"></div>
     <div class="c4"><label>Nacionalidade</label><input name="nacionalidade" value="${esc(a.nacionalidade ?? "Brasileira")}"></div>
     <div class="c4"><label>Telefone de contato</label><input name="telefone" data-mask="tel" value="${esc(a.telefone)}"></div>
+    <div><label>E-mail da família</label><input type="email" name="email" value="${esc(a.email)}"></div>
     <div class="c6"><label class="req">Nome da mãe</label><input name="mae_nome" value="${esc(a.mae_nome)}"></div>
     <div class="c6"><label>Nome do pai</label><input name="pai_nome" value="${esc(a.pai_nome)}"></div>
     <div class="c3"><label>CEP</label><input name="cep" data-mask="cep" value="${esc(a.cep)}"></div>
@@ -35,8 +36,11 @@ function formResp(r = {}) {
     <div class="c4"><label class="req">Telefone / WhatsApp</label><input name="telefone" data-mask="tel" value="${esc(r.telefone)}"></div>
     <div class="c4"><label>Outro telefone</label><input name="telefone2" data-mask="tel" value="${esc(r.telefone2)}"></div>
     <div class="c4"><label>E-mail</label><input type="email" name="email" value="${esc(r.email)}"></div>
-    <div class="c8"><label>Endereço completo</label><input name="endereco" value="${esc(r.endereco)}"></div>
-    <div class="c4"><label>Profissão</label><input name="profissao" value="${esc(r.profissao)}"></div>
+    <div class="c3"><label>CEP</label><input name="cep" data-mask="cep" value="${esc(r.cep)}"></div>
+    <div class="c9"><label>Endereço (rua, número, complemento) <button type="button" class="link small" data-copiar-end style="margin-left:8px">usar o endereço do aluno</button></label><input name="endereco" value="${esc(r.endereco)}"></div>
+    <div class="c5"><label>Bairro</label><input name="bairro" value="${esc(r.bairro)}"></div>
+    <div class="c4"><label>Cidade</label><input name="cidade" value="${esc(r.cidade)}"></div>
+    <div class="c3"><label>Profissão</label><input name="profissao" value="${esc(r.profissao)}"></div>
   </div>`;
 }
 function validaCPFs(o, rotulo) {
@@ -61,6 +65,18 @@ function editarResponsavel(familia_id, r, depois) {
     ],
   });
 }
+
+/* "usar o endereço do aluno" nos formulários de responsável */
+S.endAluno = null;
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-copiar-end]"); if (!b) return; e.preventDefault();
+  const novo = $("#faNovo") ? lerForm($("#faNovo")) : null;
+  const end = novo && (novo.endereco || novo.cidade) ? novo : S.endAluno;
+  if (!end) return toast("Preencha antes o endereço do aluno.", true);
+  const box = b.closest(".grid");
+  [["cep", end.cep], ["endereco", end.endereco], ["bairro", end.bairro], ["cidade", end.cidade ? end.cidade + (end.uf ? "/" + end.uf : "") : ""]]
+    .forEach(([n, v]) => { const el = $(`[name="${n}"]`, box); if (el && v) el.value = v; });
+});
 
 /* ---------- lista de alunos ---------- */
 rota("alunos", async (main, _, p) => {
@@ -111,6 +127,7 @@ rota("aluno", async (main, id, p) => {
     q(sb.from("responsaveis").select("*").eq("familia_id", a.familia_id).order("created_at")),
   ]);
   const atual = mats.find((m) => !["cancelada", "transferida"].includes(m.status)) || mats[0];
+  S.endAluno = a;
   const aba = p.aba || "dados";
   const abas = [["dados", "Ficha", "id-card"], ["familia", "Família e irmãos", "users"], ["matriculas", "Matrículas", "clipboard-list", mats.length],
     ["financeiro", "Financeiro", "wallet"], ["contratos", "Contratos", "file-signature"], ["documentos", "Documentos", "folder-open"],

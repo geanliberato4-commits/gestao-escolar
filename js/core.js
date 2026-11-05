@@ -251,56 +251,94 @@ async function abrirArquivo(doc, baixar) {
 /* ------------------------------------------------------------------ modelos de documento */
 const PLACEHOLDERS = [
   "escola.nome", "escola.razao_social", "escola.cnpj", "escola.endereco", "escola.cidade", "escola.telefone", "escola.email",
-  "aluno.nome", "aluno.nascimento", "aluno.idade", "aluno.sexo", "aluno.cpf", "aluno.rg", "aluno.naturalidade", "aluno.nacionalidade", "aluno.endereco_completo", "aluno.mae", "aluno.pai", "aluno.filiacao",
-  "matricula.ano_letivo", "matricula.serie", "matricula.turma", "matricula.periodo", "matricula.horario", "matricula.tipo", "matricula.data", "matricula.status",
-  "responsavel.nome", "responsavel.parentesco", "responsavel.cpf", "responsavel.rg", "responsavel.nascimento", "responsavel.endereco", "responsavel.telefone", "responsavel.email",
+  "aluno.nome", "aluno.nascimento", "aluno.idade", "aluno.sexo", "aluno.cpf", "aluno.rg", "aluno.naturalidade", "aluno.nacionalidade",
+  "aluno.endereco", "aluno.bairro", "aluno.cidade", "aluno.cep", "aluno.endereco_completo", "aluno.email", "aluno.telefones", "aluno.mae", "aluno.pai", "aluno.filiacao",
+  "matricula.ano_letivo", "matricula.curso", "matricula.serie", "matricula.turma", "matricula.periodo", "matricula.entrada", "matricula.saida", "matricula.horario", "matricula.tipo", "matricula.data", "matricula.status", "matricula.obs",
+  "responsavel.nome", "responsavel.parentesco", "responsavel.cpf", "responsavel.rg", "responsavel.nascimento", "responsavel.endereco", "responsavel.bairro", "responsavel.cidade", "responsavel.cep", "responsavel.telefone", "responsavel.telefones", "responsavel.email",
   "responsaveis.lista", "responsaveis.tabela",
-  "financeiro.mensalidade", "financeiro.desconto", "financeiro.valor_parcela", "financeiro.parcelas", "financeiro.anuidade", "financeiro.dia_vencimento", "financeiro.primeiro_vencimento", "financeiro.condicoes", "financeiro.tabela_parcelas", "financeiro.total_pago",
+  "financeiro.valor_curso", "financeiro.anuidade", "financeiro.mensalidade", "financeiro.desconto", "financeiro.valor_parcela", "financeiro.primeira_parcela", "financeiro.primeira_parcela_bruta", "financeiro.primeira_vencimento",
+  "financeiro.parcelas", "financeiro.parcelas_extenso", "financeiro.dia_vencimento", "financeiro.dia_extenso", "financeiro.inicio_demais", "financeiro.meses", "financeiro.primeiro_vencimento",
+  "financeiro.condicoes", "financeiro.cond_valor_curso", "financeiro.cond_primeira", "financeiro.cond_demais", "financeiro.material", "financeiro.material_forma", "financeiro.tabela_parcelas", "financeiro.total_pago",
   "data.hoje", "data.extenso", "usuario.nome",
   "campo.frequencia", "campo.periodo_referencia", "campo.serie_destino", "campo.texto",
 ];
 const RAW_KEYS = new Set(["responsaveis.tabela", "financeiro.tabela_parcelas", "escola.cnpj_texto"]);
+const chaveOpcao = (s) => normal(s).replace(/[^a-z0-9]/g, "");
+/* {{campo}} vira o dado; vazio vira uma linha em branco (para preencher à mão).
+   {{marcar campo: A | B | C}} imprime ( X ) na opção igual ao dado. */
 function aplicarModelo(html, ctx) {
-  return html.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, k) => {
-    const v = ctx[k];
-    if (v == null || v === "") return RAW_KEYS.has(k) ? "" : `<span style="background:#fff1b8">[${esc(k)}]</span>`;
-    return RAW_KEYS.has(k) ? v : esc(v);
-  });
+  return html
+    .replace(/\{\{\s*marcar\s+([\w.]+)\s*:\s*([^}]+)\}\}/g, (_, k, ops) => {
+      const v = chaveOpcao(ctx[k]);
+      return ops.split("|").map((o) => o.trim()).filter(Boolean)
+        .map((o) => `<span class="marca${v && chaveOpcao(o) === v ? " on" : ""}">(${v && chaveOpcao(o) === v ? "X" : "&nbsp;&nbsp;"}) ${esc(o)}</span>`).join(" ");
+    })
+    .replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, k) => {
+      const v = ctx[k];
+      if (v == null || v === "") return RAW_KEYS.has(k) ? "" : `<span class="vazio" title="${esc(k)}"></span>`;
+      return RAW_KEYS.has(k) ? v : esc(v);
+    });
 }
+const UNID = ["zero", "um", "dois", "três", "quatro", "cinco", "seis", "sete", "oito", "nove", "dez", "onze", "doze", "treze", "quatorze", "quinze", "dezesseis", "dezessete", "dezoito", "dezenove"];
+const DEZ = ["", "", "vinte", "trinta", "quarenta", "cinquenta", "sessenta", "setenta", "oitenta", "noventa"];
+const extenso = (n) => { n = Number(n); if (!Number.isInteger(n) || n < 0 || n > 99) return ""; return n < 20 ? UNID[n] : DEZ[Math.floor(n / 10)] + (n % 10 ? " e " + UNID[n % 10] : ""); };
+const mesAno = (d) => (d ? `${MESES[Number(d.slice(5, 7)) - 1]} de ${d.slice(0, 4)}` : "");
 /* reúne todos os dados de uma matrícula para preencher documentos */
 async function contextoMatricula(matriculaId, campos = {}) {
   const m = await q(sb.from("matriculas").select("*").eq("id", matriculaId).single());
-  const [a, e, t, resps, parc] = await Promise.all([
-    q(sb.from("alunos").select("*").eq("id", m.aluno_id).single()),
+  const a = await q(sb.from("alunos").select("*").eq("id", m.aluno_id).single());
+  const [e, t, resps, parc] = await Promise.all([
     q(sb.from("escolas").select("*").eq("id", m.escola_id).single()),
     m.turma_id ? q(sb.from("turmas").select("*").eq("id", m.turma_id).single()) : null,
-    q(sb.from("responsaveis").select("*").eq("familia_id", (await q(sb.from("alunos").select("familia_id").eq("id", m.aluno_id).single())).familia_id).order("created_at")),
+    q(sb.from("responsaveis").select("*").eq("familia_id", a.familia_id).order("created_at")),
     sb.from("parcelas").select("*").eq("matricula_id", matriculaId).neq("status", "cancelada").order("numero").then((r) => r.data || []),
   ]);
   const rf = resps.find((r) => r.id === m.resp_financeiro_id) || {};
-  const descTotal = parc.length ? Number(parc[0].desconto) : (m.desconto_tipo === "percentual" ? m.valor_mensalidade * m.desconto_valor / 100 : m.desconto_tipo === "valor" ? m.desconto_valor : 0);
-  const valorParc = parc.length ? Number(parc[0].valor) : m.valor_mensalidade - descTotal;
-  const anuidade = parc.length ? parc.reduce((s, p) => s + Number(p.valor), 0) : valorParc * m.num_parcelas;
+  const sep = Number(m.valor_primeira_parcela) > 0;
+  const n = m.num_parcelas;
+  const descCalc = m.desconto_tipo === "percentual" ? m.valor_mensalidade * m.desconto_valor / 100 : m.desconto_tipo === "valor" ? Number(m.desconto_valor) : 0;
+  const p1 = parc.find((p) => p.numero === 1);
+  const demais = sep ? parc.filter((p) => p.numero > 1) : parc;
+  const desc = demais.length ? Number(demais[0].desconto) : descCalc;
+  const valorDemais = demais.length ? Number(demais[0].valor) : Number(m.valor_mensalidade) - desc;
+  const primeira = p1 ? Number(p1.valor) : sep ? Number(m.valor_primeira_parcela) : valorDemais;
+  const primeiraBruta = sep ? Number(m.valor_primeira_parcela) : Number(m.valor_mensalidade);
+  const valorCurso = primeiraBruta + Number(m.valor_mensalidade) * Math.max(0, n - 1);
+  const anuidade = parc.length ? parc.reduce((s, p) => s + Number(p.valor), 0) : primeira + valorDemais * Math.max(0, n - 1);
   const pago = parc.reduce((s, p) => s + Number(p.valor_pago || 0), 0);
+  const venc = parc.map((p) => p.vencimento).sort();
+  const vencP1 = p1?.vencimento || (sep ? m.vencimento_primeira || m.data_matricula : m.primeiro_vencimento);
+  const inicioDemais = demais[0]?.vencimento || m.primeiro_vencimento;
+  const temCond = desc > 0 || !!m.condicoes_especiais;
   const filiacao = [a.mae_nome, a.pai_nome].filter(Boolean).join(" e ");
+  const tels = (...xs) => [...new Set(xs.filter(Boolean))].join(" / ");
   const ctx = {
     "escola.nome": e.nome, "escola.razao_social": e.razao_social || e.nome, "escola.cnpj": e.cnpj, "escola.cnpj_texto": e.cnpj ? `, CNPJ ${esc(e.cnpj)}` : "",
     "escola.endereco": e.endereco, "escola.cidade": e.cidade, "escola.telefone": e.telefone, "escola.email": e.email,
-    "aluno.nome": a.nome, "aluno.nascimento": dataBR(a.nascimento), "aluno.idade": a.nascimento ? idade(a.nascimento) + " anos" : "", "aluno.sexo": a.sexo, "aluno.cpf": fmtCPF(a.cpf) || "não informado", "aluno.rg": a.rg || "não informado",
+    "aluno.nome": a.nome, "aluno.nascimento": dataBR(a.nascimento), "aluno.idade": a.nascimento ? idade(a.nascimento) + " anos" : "", "aluno.sexo": a.sexo, "aluno.cpf": fmtCPF(a.cpf), "aluno.rg": a.rg,
     "aluno.naturalidade": a.naturalidade, "aluno.nacionalidade": a.nacionalidade,
+    "aluno.endereco": a.endereco, "aluno.bairro": a.bairro, "aluno.cidade": a.cidade ? a.cidade + (a.uf ? "/" + a.uf : "") : "", "aluno.cep": a.cep,
     "aluno.endereco_completo": [a.endereco, a.bairro, a.cidade && `${a.cidade}${a.uf ? "/" + a.uf : ""}`, a.cep && "CEP " + a.cep].filter(Boolean).join(", "),
-    "aluno.mae": a.mae_nome, "aluno.pai": a.pai_nome || "não declarado", "aluno.filiacao": filiacao,
-    "matricula.ano_letivo": m.ano_letivo, "matricula.serie": m.serie, "matricula.turma": t?.nome || "a definir", "matricula.periodo": m.periodo,
+    "aluno.email": a.email || resps.find((r) => r.email)?.email, "aluno.telefones": tels(a.telefone, ...resps.flatMap((r) => [r.telefone, r.telefone2])),
+    "aluno.mae": a.mae_nome, "aluno.pai": a.pai_nome, "aluno.filiacao": filiacao,
+    "matricula.ano_letivo": m.ano_letivo, "matricula.curso": /ano/i.test(m.serie || "") ? "Ensino Fundamental" : "Educação Infantil", "matricula.serie": m.serie,
+    "matricula.turma": t?.nome, "matricula.periodo": m.periodo, "matricula.entrada": hora(m.hora_entrada), "matricula.saida": hora(m.hora_saida),
     "matricula.horario": m.hora_entrada ? `${hora(m.hora_entrada)} às ${hora(m.hora_saida)}` : "", "matricula.tipo": m.tipo === "rematricula" ? "Rematrícula" : "Matrícula nova",
-    "matricula.data": dataBR(m.data_matricula), "matricula.status": STATUS_MAT[m.status]?.[0],
-    "responsavel.nome": rf.nome, "responsavel.parentesco": rf.parentesco, "responsavel.cpf": fmtCPF(rf.cpf), "responsavel.rg": rf.rg || "não informado",
-    "responsavel.nascimento": dataBR(rf.nascimento), "responsavel.endereco": rf.endereco, "responsavel.telefone": rf.telefone, "responsavel.email": rf.email,
+    "matricula.data": dataBR(m.data_matricula), "matricula.status": STATUS_MAT[m.status]?.[0], "matricula.obs": m.obs,
+    "responsavel.nome": rf.nome, "responsavel.parentesco": rf.parentesco, "responsavel.cpf": fmtCPF(rf.cpf), "responsavel.rg": rf.rg,
+    "responsavel.nascimento": dataBR(rf.nascimento), "responsavel.endereco": rf.endereco, "responsavel.bairro": rf.bairro, "responsavel.cidade": rf.cidade, "responsavel.cep": rf.cep,
+    "responsavel.telefone": rf.telefone, "responsavel.telefones": tels(rf.telefone, rf.telefone2), "responsavel.email": rf.email,
     "responsaveis.lista": resps.map((r) => `${r.nome} (${r.parentesco || "responsável"}${r.telefone ? ", " + r.telefone : ""})`).join("; "),
     "responsaveis.tabela": `<table><tr><th>Nome</th><th>Parentesco</th><th>CPF</th><th>Telefone</th><th>E-mail</th></tr>${resps.map((r) => `<tr><td>${esc(r.nome)}</td><td>${esc(r.parentesco)}</td><td>${esc(fmtCPF(r.cpf))}</td><td>${esc(r.telefone)}</td><td>${esc(r.email)}</td></tr>`).join("")}</table>`,
-    "financeiro.mensalidade": money(m.valor_mensalidade), "financeiro.desconto": money(descTotal), "financeiro.valor_parcela": money(valorParc),
-    "financeiro.parcelas": m.num_parcelas, "financeiro.anuidade": money(anuidade), "financeiro.dia_vencimento": m.dia_vencimento || (m.primeiro_vencimento ? Number(m.primeiro_vencimento.slice(8)) : ""),
-    "financeiro.primeiro_vencimento": dataBR(m.primeiro_vencimento || parc[0]?.vencimento),
-    "financeiro.condicoes": [m.desconto_motivo && "Desconto: " + m.desconto_motivo, m.condicoes_especiais].filter(Boolean).join(". ") || " ",
+    "financeiro.valor_curso": money(valorCurso), "financeiro.anuidade": money(anuidade), "financeiro.mensalidade": money(m.valor_mensalidade),
+    "financeiro.desconto": money(desc), "financeiro.valor_parcela": money(valorDemais), "financeiro.primeira_parcela": money(primeira), "financeiro.primeira_parcela_bruta": money(primeiraBruta),
+    "financeiro.primeira_vencimento": dataBR(vencP1), "financeiro.parcelas": n, "financeiro.parcelas_extenso": extenso(n),
+    "financeiro.dia_vencimento": m.dia_vencimento || (inicioDemais ? Number(inicioDemais.slice(8)) : ""), "financeiro.dia_extenso": extenso(m.dia_vencimento || (inicioDemais ? Number(inicioDemais.slice(8)) : "")),
+    "financeiro.inicio_demais": mesAno(inicioDemais), "financeiro.primeiro_vencimento": dataBR(m.primeiro_vencimento || venc[0]),
+    "financeiro.meses": venc.length ? (venc[0].slice(0, 7) === venc[venc.length - 1].slice(0, 7) ? mesAno(venc[0]) : `${mesAno(venc[0])} a ${mesAno(venc[venc.length - 1])}`) : "",
+    "financeiro.condicoes": [m.desconto_motivo && "Desconto: " + m.desconto_motivo, m.condicoes_especiais].filter(Boolean).join(". "),
+    "financeiro.cond_valor_curso": temCond && desc > 0 ? money(anuidade) : "", "financeiro.cond_primeira": temCond && desc > 0 ? money(primeira) : "", "financeiro.cond_demais": temCond && desc > 0 ? money(valorDemais) : "",
+    "financeiro.material": m.valor_material ? money(m.valor_material) : "", "financeiro.material_forma": m.material_forma,
     "financeiro.tabela_parcelas": parc.length ? `<table><tr><th>Parcela</th><th>Vencimento</th><th>Valor</th></tr>${parc.map((p) => `<tr><td>${p.numero}/${parc.length}</td><td>${dataBR(p.vencimento)}</td><td>${money(p.valor)}</td></tr>`).join("")}</table>` : "",
     "financeiro.total_pago": money(pago),
     "data.hoje": dataBR(hojeISO()), "data.extenso": dataExtenso(), "usuario.nome": S.perfil.nome,

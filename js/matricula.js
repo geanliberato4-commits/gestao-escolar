@@ -9,11 +9,12 @@ rota("matricula", async (main, _, p) => {
   const espera = p.espera ? await q(sb.from("lista_espera").select("*").eq("id", p.espera).single()) : null;
   const alunoId = editando?.aluno_id || p.aluno || espera?.aluno_id || null;
   let aluno = alunoId ? await q(sb.from("alunos").select("*").eq("id", alunoId).single()) : null;
+  S.endAluno = aluno;
   let familiaId = aluno?.familia_id || null;
   let resps = familiaId ? await q(sb.from("responsaveis").select("*").eq("familia_id", familiaId).order("created_at")) : [];
   const rema = !!anterior;
   const base = editando || (anterior ? { ...anterior, id: null, ano_letivo: anterior.ano_letivo + 1, turma_id: null, status: "em_andamento", tipo: "rematricula", data_matricula: hojeISO(), primeiro_vencimento: null, matricula_anterior_id: anterior.id, motivo_encerramento: null, data_encerramento: null, indicacao: false, indicador_nome: null, indicador_aluno_id: null, indicacao_obs: null, obs: null } : null)
-    || { escola_id: espera?.escola_id || aluno?.escola_id || S.escola || S.escolas[0]?.id, ano_letivo: espera?.ano_pretendido || S.anoAtual + (new Date().getMonth() >= 8 ? 1 : 0), turma_id: espera?.turma_id, serie: espera?.serie, periodo: espera?.periodo, num_parcelas: 12, dia_vencimento: 10, desconto_tipo: "nenhum", desconto_valor: 0, status: "em_andamento", tipo: "nova", data_matricula: hojeISO() };
+    || { escola_id: espera?.escola_id || aluno?.escola_id || S.escola || S.escolas[0]?.id, ano_letivo: espera?.ano_pretendido || S.anoAtual + (new Date().getMonth() >= 8 ? 1 : 0), turma_id: espera?.turma_id, serie: espera?.serie, periodo: espera?.periodo, num_parcelas: 13, dia_vencimento: 10, material_forma: "Editora Netbil", desconto_tipo: "nenhum", desconto_valor: 0, status: "em_andamento", tipo: "nova", data_matricula: hojeISO() };
   let indicadorAluno = base.indicador_aluno_id ? await q(sb.from("alunos").select("id,nome").eq("id", base.indicador_aluno_id).maybeSingle()) : null;
 
   const titulo = editando ? "Editar matrícula" : rema ? "Rematrícula" : "Nova matrícula";
@@ -115,22 +116,27 @@ rota("matricula", async (main, _, p) => {
     $("#secFin").innerHTML = `<h3><i data-lucide="wallet"></i>Condições financeiras</h3><div class="grid">
       <div class="c6"><label class="req">Responsável financeiro</label><select name="resp_financeiro_id">${opts(opcoes, atualSel, "Selecione")}</select></div>
       <div class="c3"><label class="req">Mensalidade (R$)</label><input name="valor_mensalidade" data-mask="money" inputmode="decimal" value="${numIn(base.valor_mensalidade)}"></div>
-      <div class="c3"><label class="req">Nº de parcelas</label><input type="number" name="num_parcelas" min="0" max="24" value="${base.num_parcelas ?? 12}"></div>
-      <div class="c3"><label>Dia do vencimento</label><input type="number" name="dia_vencimento" min="1" max="31" value="${base.dia_vencimento ?? 10}"></div>
-      <div class="c3"><label class="req">1º vencimento</label><input type="date" name="primeiro_vencimento" value="${esc(base.primeiro_vencimento || `${base.ano_letivo}-02-${String(base.dia_vencimento || 10).padStart(2, "0")}`)}"></div>
+      <div class="c3"><label class="req">Nº total de parcelas</label><input type="number" name="num_parcelas" min="0" max="24" value="${base.num_parcelas ?? 13}"></div>
+      <div class="c3"><label>1ª parcela diferente (R$)</label><input name="valor_primeira_parcela" data-mask="money" inputmode="decimal" value="${numIn(base.valor_primeira_parcela)}" placeholder="vazio = igual às demais"></div>
+      <div class="c3"><label>Vencimento da 1ª parcela</label><input type="date" name="vencimento_primeira" value="${esc(base.vencimento_primeira || "")}"></div>
+      <div class="c3"><label>Dia de vencimento</label><input type="number" name="dia_vencimento" min="1" max="31" value="${base.dia_vencimento ?? 10}"></div>
+      <div class="c3"><label class="req">1º vencimento das mensalidades</label><input type="date" name="primeiro_vencimento" value="${esc(base.primeiro_vencimento || `${base.ano_letivo}-01-${String(base.dia_vencimento || 10).padStart(2, "0")}`)}"></div>
       <div class="c3"><label>Desconto</label><select name="desconto_tipo">${opts([["nenhum", "Sem desconto"], ["percentual", "Percentual (%)"], ["valor", "Valor fixo (R$)"]], base.desconto_tipo)}</select></div>
       <div class="c3"><label>Valor do desconto</label><input name="desconto_valor" data-mask="money" inputmode="decimal" value="${numIn(base.desconto_valor)}"></div>
       <div class="c6"><label>Motivo do desconto</label><input name="desconto_motivo" value="${esc(base.desconto_motivo)}" placeholder="Ex.: bolsa parcial, convênio"></div>
       <div class="c6"><label>&nbsp;</label><label class="chk"><input type="checkbox" name="aplica_desconto_irmao" ${base.aplica_desconto_irmao ? "checked" : ""}> Aplicar desconto de irmão
         <span class="muted small">(${e.desconto_irmao_tipo === "valor" ? money(e.desconto_irmao_valor) : (e.desconto_irmao_valor || 0) + "%"}${e.descontos_acumulam ? ", acumula" : ", não acumula"})</span></label></div>
-      <div><label>Condições especiais</label><textarea name="condicoes_especiais" placeholder="Aparecem no contrato">${esc(base.condicoes_especiais)}</textarea></div>
+      <div class="c6"><label>Material didático (R$)</label><input name="valor_material" data-mask="money" inputmode="decimal" value="${numIn(base.valor_material)}"></div>
+      <div class="c6"><label>Forma de pagamento do material</label><input name="material_forma" value="${esc(base.material_forma ?? "Editora Netbil")}"></div>
+      <div><label>Condições especiais</label><textarea name="condicoes_especiais" placeholder="Aparece no requerimento (condição especial)">${esc(base.condicoes_especiais)}</textarea></div>
       <div id="prev" class="hint"></div></div>`;
     $$("#secFin input,#secFin select").forEach((x) => x.addEventListener("input", prever)); prever();
   };
   function prever() {
     const f = lerForm($("#secFin")); const v = f.valor_mensalidade || 0;
     const d = f.desconto_tipo === "percentual" ? v * (f.desconto_valor || 0) / 100 : f.desconto_tipo === "valor" ? f.desconto_valor || 0 : 0;
-    $("#prev").innerHTML = v ? `Parcela estimada: <b>${money(v - d)}</b> × ${f.num_parcelas || 0} = <b>${money((v - d) * (f.num_parcelas || 0))}</b>${f.aplica_desconto_irmao ? " (o desconto de irmão é aplicado na geração se houver irmão matriculado no mesmo ano)" : ""}` : "";
+    const n = f.num_parcelas || 0, p1 = f.valor_primeira_parcela > 0 ? f.valor_primeira_parcela : null;
+    $("#prev").innerHTML = v ? (p1 ? `1ª parcela <b>${money(p1)}</b> + ${n - 1} × <b>${money(v - d)}</b> = <b>${money(p1 + (v - d) * Math.max(0, n - 1))}</b>` : `Parcela estimada: <b>${money(v - d)}</b> × ${n} = <b>${money((v - d) * n)}</b>`) + `${f.aplica_desconto_irmao ? " (o desconto de irmão é aplicado na geração se houver irmão matriculado no mesmo ano)" : ""}` : "";
   }
 
   /* ---- 5. origem / indicação ---- */
