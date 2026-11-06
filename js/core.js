@@ -93,7 +93,13 @@ const tag = (map, k) => { const v = map[k] || [k || "—", "off"]; return `<span
 
 /* ------------------------------------------------------------------ permissões */
 const ehDirecao = () => S.perfil?.papel === "direcao";
-const pode = (m) => ehDirecao() || S.modulos.has(m);
+/* nível do usuário em cada área: "editar" | "ver" | "nenhum" (direção = editar em tudo) */
+const nivel = (m) => (ehDirecao() ? "editar" : S.perfil?.permissoes?.[m] || (S.modulos.has(m) ? "editar" : "ver"));
+const pode = (m) => nivel(m) === "editar";
+const veMod = (m) => nivel(m) !== "nenhum";
+/* área exigida para abrir cada tela (visualizar) */
+const ROTA_MODULO = { alunos: "cadastro", aluno: "cadastro", matricula: "matricula", rematricula: "matricula", matriculas: "matricula", espera: "espera",
+  contratos: "contratos", documentos: "documentos", declaracoes: "declaracoes", financeiro: "financeiro", relatorios: "relatorios", turmas: "turmas", modelos: "modelos" };
 const escolaNome = (id) => S.escolas.find((e) => e.id === id)?.nome || "";
 const escolasVisiveis = () => S.escolas;
 const filtraEscola = (q, col = "escola_id") => (S.escola ? q.eq(col, S.escola) : q);
@@ -215,6 +221,7 @@ async function render() {
   $(".shell")?.classList.remove("open");
   const main = $("#main"); main.innerHTML = carregando();
   const fn = ROTAS[nome] || ROTAS.painel;
+  if (ROTA_MODULO[nome] && !veMod(ROTA_MODULO[nome])) { main.innerHTML = vazio("Seu usuário não tem acesso a esta área. Fale com a administração.", "lock"); icons(); return; }
   try { await fn(main, arg, params); } catch (e) { console.error(e); main.innerHTML = `<div class="msg err"><i data-lucide="alert-triangle"></i>${esc(erroAmigavel(e))}</div>`; }
   icons(); window.scrollTo(0, 0);
 }

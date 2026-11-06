@@ -140,7 +140,7 @@ async function editorModelo(main, id) {
 rota("config", async (main, _, p) => {
   if (!(ehDirecao() || S.perfil.admin)) { main.innerHTML = vazio("Apenas a direção acessa as configurações.", "lock"); return; }
   const aba = p.aba || "escolas";
-  const abas = [["escolas", "Escolas", "building-2"], ...(S.perfil.admin ? [["usuarios", "Usuários", "user-cog"], ["permissoes", "Permissões", "shield"]] : []), ["backup", "Backup", "database-backup"], ["auditoria", "Registro de alterações", "history"], ["lgpd", "Privacidade (LGPD)", "lock"]];
+  const abas = [["escolas", "Escolas", "building-2"], ...(S.perfil.admin ? [["permissoes", "Permissões padrão", "shield"]] : []), ["backup", "Backup", "database-backup"], ["auditoria", "Registro de alterações", "history"], ["lgpd", "Privacidade (LGPD)", "lock"]];
   main.innerHTML = pageHead("settings", "Configurações", "") + `<div class="tabs">${abas.map(([k, t, ic]) => `<button class="${k === aba ? "on" : ""}" data-a="${k}"><i data-lucide="${ic}"></i>${t}</button>`).join("")}</div><div id="cfg">${carregando()}</div>`;
   $$("[data-a]").forEach((b) => (b.onclick = () => ir("#/config?aba=" + b.dataset.a)));
   icons();
@@ -169,7 +169,7 @@ const CFG = {
     }));
   },
 
-  async usuarios(box) {
+  async usuariosAntigo(box) {
     const { data, error } = await sb.functions.invoke("usuarios", { body: { acao: "listar" } });
     if (error || data?.erro) { box.innerHTML = `<div class="msg err">${esc(data?.erro || error.message)}</div>`; return; }
     const us = data.usuarios;
@@ -201,7 +201,7 @@ const CFG = {
   async permissoes(box) {
     const pm = await q(sb.from("papel_modulos").select("*"));
     const tem = (p, m) => pm.some((x) => x.papel === p && x.modulo === m);
-    box.innerHTML = `<div class="card"><p class="sub">A direção tem acesso total. Ajuste o que secretaria e financeiro podem <b>alterar</b>. Todos os perfis consultam as fichas das escolas a que têm acesso.</p>
+    box.innerHTML = `<div class="card"><p class="sub">Padrão para quem não tem permissões individuais. A direção tem acesso total. Para ajustar uma pessoa específica, use <a class="link" href="#/usuarios">Gerenciamento de usuários</a>. Todos os perfis consultam as fichas das escolas a que têm acesso.</p>
       <div class="scroll" style="box-shadow:none"><table><thead><tr><th>Módulo</th><th>Secretaria</th><th>Financeiro</th></tr></thead><tbody>
       ${Object.entries(MODULOS).map(([m, t]) => `<tr><td>${esc(t)}</td>${["secretaria", "financeiro"].map((p) => `<td><input type="checkbox" style="width:auto" data-p="${p}" data-m="${m}" ${tem(p, m) ? "checked" : ""}></td>`).join("")}</tr>`).join("")}</tbody></table></div></div>`;
     $$("[data-p]", box).forEach((c) => (c.onchange = () => tenta(() => c.checked ? q(sb.from("papel_modulos").insert({ papel: c.dataset.p, modulo: c.dataset.m })) : q(sb.from("papel_modulos").delete().eq("papel", c.dataset.p).eq("modulo", c.dataset.m)), "Permissão atualizada. Vale no próximo acesso de quem usa esse perfil.")));

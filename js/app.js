@@ -20,10 +20,17 @@ async function mostrarLogin(msg) {
 
 $("#loginForm").addEventListener("submit", async (e) => {
   e.preventDefault(); const b = $("#entrar"); b.disabled = true; $("#loginMsg").innerHTML = "";
-  const { data, error } = await sb.auth.signInWithPassword({ email: $("#email").value.trim(), password: $("#senha").value });
+  const id = $("#email").value.trim(), senha = $("#senha").value;
+  let user = null;
+  if (id.includes("@")) {
+    const { data } = await sb.auth.signInWithPassword({ email: id, password: senha }); user = data?.user;
+  } else {
+    const { data } = await sb.functions.invoke("usuarios", { body: { acao: "entrar", login: id, senha } }).catch(() => ({}));
+    if (data?.access_token) { const r = await sb.auth.setSession({ access_token: data.access_token, refresh_token: data.refresh_token }); user = r.data?.user; }
+  }
   b.disabled = false;
-  if (error) { $("#loginMsg").innerHTML = `<div class="msg err"><i data-lucide="alert-circle"></i>E-mail ou senha incorretos.</div>`; icons(); return; }
-  entrarNoSistema(data.user);
+  if (!user) { $("#loginMsg").innerHTML = `<div class="msg err"><i data-lucide="alert-circle"></i>E-mail/login ou senha incorretos.</div>`; icons(); return; }
+  entrarNoSistema(user);
 });
 
 $("#primeiroForm").addEventListener("submit", async (e) => {
@@ -58,10 +65,19 @@ async function entrarNoSistema(user) {
   aplicarTema();
   // esconde o que o perfil não usa
   $$(".nav button[data-m]").forEach((b) => b.classList.toggle("hidden", !pode(b.dataset.m)));
+  $$(".nav button[data-ver]").forEach((b) => b.classList.toggle("hidden", !veMod(b.dataset.ver)));
+  $$(".nav button[data-adm]").forEach((b) => b.classList.toggle("hidden", !S.perfil.admin));
   $$(".nav button[data-d]").forEach((b) => b.classList.toggle("hidden", !(ehDirecao() || S.perfil.admin)));
   $$('.nav button[data-x="prest"]').forEach((b) => b.classList.toggle("hidden", !S.prestadores));
   if (S.prestadores) alertasPrestadores().catch(() => {});
   try { if (localStorage.getItem("ge.menu") === "c") $(".shell").classList.add("collapsed"); } catch (_) {}
+  // usuário desativado ou excluído é desconectado mesmo com a tela aberta (os dados já ficam bloqueados no servidor)
+  clearInterval(S.vigia);
+  S.vigia = setInterval(async () => {
+    if (!S.perfil) return clearInterval(S.vigia);
+    const r = await sb.from("perfis").select("ativo").eq("user_id", S.user.id).maybeSingle();
+    if (!r.error && !r.data?.ativo) { clearInterval(S.vigia); S.perfil = null; await sb.auth.signOut(); mostrarLogin("Seu acesso foi desativado. Fale com a direção."); }
+  }, 60000);
   render();
 }
 

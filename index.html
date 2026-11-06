@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css?v=12">
+<link rel="stylesheet" href="css/style.css?v=14">
 </head>
 <body>
 
@@ -31,8 +31,8 @@
       <h1>Bem-vindo(a)</h1>
       <p class="muted" style="margin:0 0 6px">Acesso restrito à equipe administrativa.</p>
       <form id="loginForm">
-        <label for="email">E-mail</label>
-        <div class="field"><i data-lucide="mail"></i><input id="email" type="email" autocomplete="username" placeholder="seu@email.com" required></div>
+        <label for="email">E-mail ou login</label>
+        <div class="field"><i data-lucide="user"></i><input id="email" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="seu@email.com ou login" required></div>
         <label for="senha">Senha</label>
         <div class="field"><i data-lucide="lock"></i><input id="senha" type="password" autocomplete="current-password" placeholder="Sua senha" required></div>
         <div id="loginMsg"></div>
@@ -61,23 +61,24 @@
     <nav class="nav" id="nav">
       <div class="nav-label">Geral</div>
       <button data-r="painel" title="Painel"><i data-lucide="layout-dashboard"></i><span>Painel</span></button>
-      <button data-r="alunos" data-alias="aluno" title="Alunos"><i data-lucide="users"></i><span>Alunos</span></button>
+      <button data-r="alunos" data-ver="cadastro" data-alias="aluno" title="Alunos"><i data-lucide="users"></i><span>Alunos</span></button>
       <div class="nav-label">Secretaria</div>
       <button data-r="matricula" data-m="matricula" title="Nova matrícula"><i data-lucide="user-plus"></i><span>Matrícula</span></button>
       <button data-r="rematricula" data-m="matricula" title="Rematrícula"><i data-lucide="refresh-cw"></i><span>Rematrícula</span></button>
-      <button data-r="matriculas" title="Matrículas e vagas"><i data-lucide="clipboard-list"></i><span>Matrículas e vagas</span></button>
-      <button data-r="espera" title="Lista de espera"><i data-lucide="hourglass"></i><span>Lista de espera</span></button>
-      <button data-r="contratos" title="Contratos"><i data-lucide="file-signature"></i><span>Contratos</span></button>
-      <button data-r="documentos" title="Documentos"><i data-lucide="folder-open"></i><span>Documentos</span></button>
+      <button data-r="matriculas" data-ver="matricula" title="Matrículas e vagas"><i data-lucide="clipboard-list"></i><span>Matrículas e vagas</span></button>
+      <button data-r="espera" data-ver="espera" title="Lista de espera"><i data-lucide="hourglass"></i><span>Lista de espera</span></button>
+      <button data-r="contratos" data-ver="contratos" title="Contratos"><i data-lucide="file-signature"></i><span>Contratos</span></button>
+      <button data-r="documentos" data-ver="documentos" title="Documentos"><i data-lucide="folder-open"></i><span>Documentos</span></button>
       <button data-r="declaracoes" data-m="declaracoes" title="Declarações"><i data-lucide="file-badge"></i><span>Declarações</span></button>
       <div class="nav-label">Financeiro</div>
-      <button data-r="financeiro" data-m="financeiro" title="Painel financeiro"><i data-lucide="wallet"></i><span>Painel financeiro</span></button>
+      <button data-r="financeiro" data-ver="financeiro" title="Painel financeiro"><i data-lucide="wallet"></i><span>Painel financeiro</span></button>
       <button data-r="prestadores" data-x="prest" class="hidden" title="Pagamentos de prestadores"><i data-lucide="hand-coins"></i><span>Pagamentos de prestadores</span><b class="n hidden"></b></button>
       <button data-r="caixa" data-x="prest" class="hidden" title="Livro Caixa"><i data-lucide="book-open"></i><span>Livro Caixa</span></button>
-      <button data-r="relatorios" data-m="relatorios" title="Relatórios"><i data-lucide="file-bar-chart"></i><span>Relatórios</span></button>
+      <button data-r="relatorios" data-ver="relatorios" title="Relatórios"><i data-lucide="file-bar-chart"></i><span>Relatórios</span></button>
       <div class="nav-label">Sistema</div>
-      <button data-r="turmas" title="Turmas"><i data-lucide="school"></i><span>Turmas</span></button>
+      <button data-r="turmas" data-ver="turmas" title="Turmas"><i data-lucide="school"></i><span>Turmas</span></button>
       <button data-r="modelos" data-m="modelos" title="Modelos de documentos"><i data-lucide="file-cog"></i><span>Modelos</span></button>
+      <button data-r="usuarios" data-adm="1" class="hidden" title="Gerenciamento de usuários"><i data-lucide="user-cog"></i><span>Gerenciamento de usuários</span></button>
       <button data-r="importar" data-d="1" title="Importar alunos"><i data-lucide="file-up"></i><span>Importar alunos</span></button>
       <button data-r="config" data-d="1" title="Configurações"><i data-lucide="settings"></i><span>Configurações</span></button>
     </nav>
@@ -110,16 +111,17 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="config.js?v=12"></script>
-<script src="js/core.js?v=12"></script>
-<script src="js/alunos.js?v=12"></script>
-<script src="js/matricula.js?v=12"></script>
-<script src="js/financeiro.js?v=12"></script>
-<script src="js/secretaria.js?v=12"></script>
-<script src="js/sistema.js?v=12"></script>
-<script src="js/importar.js?v=12"></script>
-<script src="js/prestadores.js?v=12"></script>
-<script src="js/caixa.js?v=12"></script>
-<script src="js/app.js?v=12"></script>
+<script src="config.js?v=14"></script>
+<script src="js/core.js?v=14"></script>
+<script src="js/alunos.js?v=14"></script>
+<script src="js/matricula.js?v=14"></script>
+<script src="js/financeiro.js?v=14"></script>
+<script src="js/secretaria.js?v=14"></script>
+<script src="js/sistema.js?v=14"></script>
+<script src="js/importar.js?v=14"></script>
+<script src="js/prestadores.js?v=14"></script>
+<script src="js/caixa.js?v=14"></script>
+<script src="js/usuarios.js?v=14"></script>
+<script src="js/app.js?v=14"></script>
 </body>
 </html>

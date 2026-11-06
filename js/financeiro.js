@@ -115,7 +115,7 @@ function novaParcela(ref, depois) {
 
 /* ---------- painel financeiro geral ---------- */
 rota("financeiro", async (main, _, p) => {
-  if (!pode("financeiro")) { main.innerHTML = vazio("Seu perfil não acessa o painel financeiro.", "lock"); return; }
+  if (!veMod("financeiro")) { main.innerHTML = vazio("Seu perfil não acessa o painel financeiro.", "lock"); return; }
   const ano = "ano" in p ? p.ano : String(S.anoAtual);
   const familia = p.familia;
   let famNome = "";
@@ -190,9 +190,9 @@ rota("financeiro", async (main, _, p) => {
 
 /* ---------- relatórios ---------- */
 rota("relatorios", async (main, _, p) => {
-  if (!pode("relatorios") && !pode("financeiro")) { main.innerHTML = vazio("Seu perfil não acessa relatórios.", "lock"); return; }
-  const tipo = p.t || (pode("financeiro") ? "recebimentos" : "indicacoes");
-  const tipos = [...(pode("financeiro") ? [["recebimentos", "Recebimentos", "banknote"], ["inadimplencia", "Inadimplência", "alert-triangle"], ["pendencias", "Boletos e notas pendentes", "receipt"]] : []),
+  if (!veMod("relatorios") && !veMod("financeiro")) { main.innerHTML = vazio("Seu perfil não acessa relatórios.", "lock"); return; }
+  const tipo = p.t || (veMod("financeiro") ? "recebimentos" : "indicacoes");
+  const tipos = [...(veMod("financeiro") ? [["recebimentos", "Recebimentos", "banknote"], ["inadimplencia", "Inadimplência", "alert-triangle"], ["pendencias", "Boletos e notas pendentes", "receipt"]] : []),
     ["indicacoes", "Matrículas por indicação", "megaphone"], ["documentacao", "Documentação incompleta", "folder-x"]];
   const de = p.de || `${S.anoAtual}-01-01`, ate = p.ate || hojeISO();
   main.innerHTML = pageHead("file-bar-chart", "Relatórios", "Exporte em PDF ou Excel.") +
