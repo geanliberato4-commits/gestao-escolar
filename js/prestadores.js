@@ -7,7 +7,11 @@ const SIT_PREST = { pago: ["Pago", "ok"], pendente: ["Pendente", "blue"], atrasa
 const TIPO_PREST = { unico: "Pagamento único", parcelado: "Parcelado", recorrente: "Mensal recorrente" };
 const FORMAS = ["PIX", "Boleto", "Transferência", "Dinheiro", "Cartão", "Débito automático", "Outro"];
 
-const vencNoMes = (ano, mes0, dia) => { const ult = new Date(ano, mes0 + 1, 0).getDate(); return `${ano}-${String(mes0 + 1).padStart(2, "0")}-${String(Math.min(dia, ult)).padStart(2, "0")}`; };
+const vencNoMes = (ano, mes0, dia) => {
+  const b = new Date(ano, mes0, 1); ano = b.getFullYear(); mes0 = b.getMonth(); // mês 12 vira janeiro do ano seguinte
+  const ult = new Date(ano, mes0 + 1, 0).getDate();
+  return `${ano}-${String(mes0 + 1).padStart(2, "0")}-${String(Math.min(dia, ult)).padStart(2, "0")}`;
+};
 const prazoTxt = (d) => (d < 0 ? `atrasado há ${-d} dia${d === -1 ? "" : "s"}` : d === 0 ? "vence hoje" : d === 1 ? "vence amanhã" : `vence em ${d} dias`);
 
 /* gera as datas de vencimento de um contrato */
@@ -78,6 +82,10 @@ function editarParcelaPrest(p, depois) {
       <div class="c6"><label>Data efetiva do pagamento</label><input type="date" name="data_pagamento" value="${p.data_pagamento || ""}"></div>
       <div><label>Observações</label><textarea name="obs">${esc(p.obs)}</textarea></div></div>`,
     acts: [
+      { label: "Excluir", cls: "ghost-danger", icon: "trash-2", onClick: async () => {
+        if (!(await confirmar(`Excluir a parcela ${p.numero} de <b>${esc(p.prestador)}</b> (${dataBR(p.vencimento)}, ${money(p.valor)})? Não dá para desfazer.`, { perigo: true, ok: "Excluir" }))) return false;
+        const ok = await tenta(async () => { if (p.comprovante_path) await sb.storage.from("prestadores").remove([p.comprovante_path]); await q(sb.from("prest_parcelas").delete().eq("id", p.id)); }, "Parcela excluída.");
+        if (ok === undefined) return false; depois && depois(); } },
       ...(p.comprovante_path ? [{ label: "Ver comprovante", cls: "sec", icon: "paperclip", close: false, onClick: async () => { verComprovante(p.comprovante_path); return false; } }] : []),
       { label: "Cancelar", cls: "sec" },
       { label: "Salvar", onClick: async (r) => { const f = lerForm(r); if (f.status !== "pago") { f.data_pagamento = null; f.valor_pago = null; }
@@ -118,7 +126,16 @@ function editarContratoPrest(c, depois) {
     title: c?.id ? "Editar contrato de prestador" : "Novo pagamento a prestador", size: "lg", body: formContratoPrest(c || {}),
     onOpen: (r) => { $("#pTipo", r).onchange = () => ajustarFormPrest(r); ajustarFormPrest(r); },
     acts: [
-      ...(c?.id ? [{ label: c.ativo ? "Encerrar contrato" : "Reativar", cls: "ghost-danger", onClick: async () => {
+      ...(c?.id ? [{ label: "Excluir", cls: "ghost-danger", icon: "trash-2", onClick: async () => {
+        const ps = await q(sb.from("prest_parcelas").select("id,status,comprovante_path").eq("contrato_id", c.id));
+        const pagas = ps.filter((x) => x.status === "pago").length;
+        if (!(await confirmar(`Excluir <b>${esc(c.prestador)}</b> e ${ps.length} vencimento(s)${pagas ? `, incluindo <b>${pagas} pagamento(s) já registrado(s)</b> e seus comprovantes` : ""}? Não dá para desfazer.${pagas ? "<br><br>Se o contrato só terminou, prefira <b>Encerrar contrato</b>: o histórico fica guardado." : ""}`, { perigo: true, ok: "Excluir definitivamente" }))) return false;
+        const ok = await tenta(async () => {
+          const arqs = ps.map((x) => x.comprovante_path).filter(Boolean); if (arqs.length) await sb.storage.from("prestadores").remove(arqs);
+          await q(sb.from("prest_contratos").delete().eq("id", c.id));
+        }, "Prestador excluído.");
+        if (ok === undefined) return false; depois(); } },
+        { label: c.ativo ? "Encerrar contrato" : "Reativar", cls: "ghost-danger", onClick: async () => {
         if (c.ativo) {
           if (!(await confirmar("Encerrar este contrato? As parcelas futuras ainda não pagas serão canceladas; as pagas ficam no histórico.", { perigo: true, ok: "Encerrar" }))) return false;
           await tenta(async () => { await q(sb.from("prest_contratos").update({ ativo: false }).eq("id", c.id)); await q(sb.from("prest_parcelas").update({ status: "cancelado" }).eq("contrato_id", c.id).eq("status", "pendente").gte("vencimento", hojeISO())); }, "Contrato encerrado.");
@@ -136,7 +153,8 @@ function editarContratoPrest(c, depois) {
           if (c?.id) return q(sb.from("prest_contratos").update(o).eq("id", c.id));
           const novo = await q(sb.from("prest_contratos").insert(o).select().single());
           const vs = gerarVencimentos(novo);
-          await q(sb.from("prest_parcelas").insert(vs.map((v, i) => ({ contrato_id: novo.id, escola_id: novo.escola_id, numero: i + 1, vencimento: v.vencimento, valor: v.valor, forma_pagamento: novo.forma_pagamento }))));
+          try { await q(sb.from("prest_parcelas").insert(vs.map((v, i) => ({ contrato_id: novo.id, escola_id: novo.escola_id, numero: i + 1, vencimento: v.vencimento, valor: v.valor, forma_pagamento: novo.forma_pagamento })))); }
+          catch (e) { await sb.from("prest_contratos").delete().eq("id", novo.id); throw e; } // não deixa cadastro pela metade
           toast(`${vs.length} vencimento(s) gerado(s).`);
         }, c?.id ? "Contrato atualizado. Ajuste parcelas já geradas na aba Parcelas, se precisar." : undefined);
         if (ok === undefined) return false; depois(); } }],

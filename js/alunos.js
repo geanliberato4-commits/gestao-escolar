@@ -164,7 +164,7 @@ const FICHA = {
     box.innerHTML = `<div class="card"><div class="row" style="margin-bottom:6px"><h3>Dados do aluno</h3>
       ${edit ? `<div class="right row"><button class="btn sm sec" id="ativar">${a.ativo ? "Marcar inativo" : "Reativar"}</button></div>` : ""}</div>
       <div id="fa">${formAluno(a, { escolaFixa: !ehDirecao() })}</div>
-      ${edit ? `<div class="form-acts"><button class="btn" id="salvar"><i data-lucide="save"></i>Salvar alterações</button></div>` : ""}</div>`;
+      ${edit ? `<div class="form-acts">${ehDirecao() ? `<button class="btn ghost-danger" id="excluirAluno" style="margin-right:auto"><i data-lucide="trash-2"></i>Excluir aluno</button>` : ""}<button class="btn" id="salvar"><i data-lucide="save"></i>Salvar alterações</button></div>` : ""}</div>`;
     if (!edit) $$("#fa input,#fa select,#fa textarea").forEach((e) => (e.disabled = true));
     if (!edit) return;
     $("#salvar").onclick = async () => {
@@ -174,6 +174,19 @@ const FICHA = {
       const ok = await tenta(() => q(sb.from("alunos").update(o).eq("id", a.id)), "Ficha atualizada. Os próximos documentos já usam os novos dados.");
       if (ok !== undefined) recarregar();
     };
+    if ($("#excluirAluno")) $("#excluirAluno").onclick = () => modal({
+      title: "Excluir aluno definitivamente",
+      body: `<p>Isto apaga <b>${esc(a.nome)}</b> com matrículas, mensalidades, contratos em rascunho, declarações e arquivos anexados. <b>Não dá para desfazer.</b></p>
+        <p class="muted">Use só para cadastro errado, duplicado ou de teste. Se o aluno saiu da escola, use <b>Marcar inativo</b>: o histórico fica guardado.</p>
+        <label>Para confirmar, digite <b>EXCLUIR</b></label><input name="conf" autocomplete="off">`,
+      acts: [{ label: "Cancelar", cls: "sec" }, { label: "Excluir definitivamente", cls: "danger", onClick: async (r) => {
+        if ($('[name="conf"]', r).value.trim().toUpperCase() !== "EXCLUIR") { toast("Digite EXCLUIR para confirmar.", true); return false; }
+        const arqs = await tenta(() => q(sb.rpc("excluir_aluno", { p_aluno: a.id })));
+        if (arqs === undefined) return false;
+        if (arqs?.length) await sb.storage.from("documentos").remove(arqs);
+        toast("Aluno excluído."); ir("#/alunos");
+      } }],
+    });
     $("#ativar").onclick = async () => {
       if (!(await confirmar(a.ativo ? "Marcar o aluno como inativo? O histórico é preservado." : "Reativar o aluno?"))) return;
       await tenta(() => q(sb.from("alunos").update({ ativo: !a.ativo }).eq("id", a.id)), "Situação atualizada."); recarregar();
