@@ -266,45 +266,52 @@ const PDF_MARGEM = [12, 10, 14, 10]; // mm: topo, esquerda, base, direita
 const PDF_LARG = 718;                // px = (210 - 10 - 10) mm, como o gerador calcula
 const PDF_PAG = PDF_LARG * (297 - PDF_MARGEM[0] - PDF_MARGEM[2]) / (210 - PDF_MARGEM[1] - PDF_MARGEM[3]); // altura útil em px
 
+/* cada palavra vira um bloco inline: o gerador de imagem desenha a palavra exatamente onde o navegador a colocou.
+   Sem isso, em alguns navegadores (Safari/iPhone, Firefox) palavras com "/" ou "-" (CNPJ, CPF, datas) se sobrepunham. */
+function fixarPalavras(el) {
+  const tw = document.createTreeWalker(el, NodeFilter.SHOW_TEXT), nos = [];
+  for (let n; (n = tw.nextNode());) if (n.data.trim() && !n.parentElement.closest("style,script")) nos.push(n);
+  nos.forEach((n) => {
+    const f = document.createDocumentFragment();
+    n.data.split(/(\s+)/).forEach((t) => {
+      if (!t) return;
+      if (/^\s+$/.test(t)) f.appendChild(document.createTextNode(t));
+      else { const sp = document.createElement("span"); sp.className = "w"; sp.style.display = "inline-block"; sp.textContent = t; f.appendChild(sp); }
+    });
+    n.parentNode.replaceChild(f, n);
+  });
+}
+
 function paginarSemCorte(el) {
   const INTEIROS = "tr,img,h1,h2,h3,h4,.assinaturas,.cert,.cab,.rodape,hr,li";
-  const base = () => el.getBoundingClientRect().top;
   // unidades que não podem ser cortadas: cada linha de texto e os blocos inteiros acima
   const unidades = () => {
-    const t0 = base(), us = [];
+    const t0 = el.getBoundingClientRect().top, us = [];
     el.querySelectorAll(INTEIROS).forEach((x) => {
       if (x.parentElement.closest(INTEIROS)) return;
       const r = x.getBoundingClientRect(); if (r.height) us.push({ top: r.top - t0, bottom: r.bottom - t0, el: x });
     });
-    const tw = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
-    const rg = document.createRange();
-    for (let n; (n = tw.nextNode());) {
-      if (!n.data.trim() || n.parentElement.closest(INTEIROS)) continue;
-      let linhaTop = null, re = /\S+/g, m;
-      while ((m = re.exec(n.data))) {
-        rg.setStart(n, m.index); rg.setEnd(n, m.index + m[0].length);
-        const r = rg.getClientRects()[0]; if (!r) continue;
-        if (linhaTop === null || r.top - t0 > linhaTop + 2) { linhaTop = r.top - t0; us.push({ top: linhaTop, bottom: r.bottom - t0, node: n, off: m.index }); }
-        else { const u = us[us.length - 1]; u.bottom = Math.max(u.bottom, r.bottom - t0); }
-      }
-    }
+    let linha = null;
+    el.querySelectorAll("span.w").forEach((w) => {
+      if (w.closest(INTEIROS)) return;
+      const r = w.getBoundingClientRect(); if (!r.height) return;
+      const top = r.top - t0, bottom = r.bottom - t0;
+      if (!linha || top > linha.top + 2 || bottom < linha.top) { linha = { top, bottom, el: w, linha: true }; us.push(linha); }
+      else linha.bottom = Math.max(linha.bottom, bottom);
+    });
     return us.sort((a, b) => a.top - b.top);
   };
   for (let fim = PDF_PAG, guarda = 0; fim < el.scrollHeight && guarda < 60; guarda++) {
     const u = unidades().find((x) => x.top < fim - 1 && x.bottom > fim - 2 && x.bottom - x.top < PDF_PAG * 0.9);
     if (u) {
       const h = Math.ceil(fim - u.top) + 2;
-      if (u.node) {
-        // linha no meio de um parágrafo: quebra o texto naquele ponto e insere um espaço até a próxima página
-        const resto = u.off > 0 ? u.node.splitText(u.off) : u.node;
-        const sp = document.createElement("span"); sp.className = "pg-salto"; sp.style.cssText = `display:block;height:${h}px`;
-        resto.parentNode.insertBefore(sp, resto);
-      } else if (u.el.tagName === "TR") {
+      if (u.el.tagName === "TR") {
         const tr = document.createElement("tr"); tr.className = "pg-salto";
         tr.innerHTML = `<td colspan="99" style="height:${h}px;padding:0;border:0;border-bottom:1px solid #999;background:#fff"></td>`;
         u.el.parentNode.insertBefore(tr, u.el);
       } else {
-        const sp = document.createElement("div"); sp.className = "pg-salto"; sp.style.height = h + "px";
+        // linha no meio de um parágrafo ou bloco inteiro: espaço em branco até a próxima página
+        const sp = document.createElement("span"); sp.className = "pg-salto"; sp.style.cssText = `display:block;height:${h}px`;
         u.el.parentNode.insertBefore(sp, u.el);
       }
     }
@@ -321,7 +328,7 @@ async function pdfBlob(html) {
   try {
     await Promise.all([...el.querySelectorAll("img")].map((i) => (i.complete ? null : new Promise((r) => { i.onload = i.onerror = r; }))));
     if (document.fonts?.ready) await document.fonts.ready;
-    try { paginarSemCorte(el); } catch (e) { console.warn("paginação", e); }
+    try { fixarPalavras(el); paginarSemCorte(el); } catch (e) { console.warn("paginação", e); }
     const alt = Math.max(el.scrollHeight, 1123);
     const escala = Math.max(1, Math.min(2, Math.sqrt(15e6 / (PDF_LARG * alt))));
     return await html2pdf().set({
