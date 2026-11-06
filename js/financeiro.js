@@ -3,6 +3,10 @@
    painel consolidado e relatórios.
    ========================================================================== */
 
+/* número da parcela; a 1ª pode estar dividida em pagamentos (condição especial) */
+const numParcTxt = (p) => (p.partes ? `${p.numero} (pag. ${p.parte}/${p.partes})` : String(p.numero));
+const numParc = (p) => (p.partes ? `${p.numero} <span class="tag warn" title="1ª parcela com condição especial">pag. ${p.parte}/${p.partes}</span>` : p.numero);
+
 /* tabela de parcelas reutilizável (ficha do aluno e painel geral) */
 function painelParcelas(box, parc, { porAno = false, selecionavel = false, recarregar, mostrarAluno = false } = {}) {
   const fin = pode("financeiro");
@@ -10,7 +14,7 @@ function painelParcelas(box, parc, { porAno = false, selecionavel = false, recar
   const linha = (p) => `<tr class="${p.situacao === "atrasado" ? "alert-row" : ""}">
     ${selecionavel && fin ? `<td><input type="checkbox" class="selP" value="${p.id}" style="width:auto"></td>` : ""}
     ${mostrarAluno ? `<td><a class="link" href="#/aluno/${p.aluno_id}?aba=financeiro">${esc(p.aluno_nome)}</a><div class="small muted">${esc([S.escola ? "" : p.escola_nome, p.turma_nome || p.serie].filter(Boolean).join(" · "))}</div></td>` : ""}
-    <td>${p.numero}${porAno ? "" : ` <span class="small muted">${p.ano_letivo}</span>`}<div class="small muted">${esc(p.resp_nome || "")}</div></td>
+    <td>${numParc(p)}${porAno ? "" : ` <span class="small muted">${p.ano_letivo}</span>`}<div class="small muted">${esc(p.resp_nome || "")}</div></td>
     <td>${dataBR(p.vencimento)}</td>
     <td class="num money">${money(p.valor)}${Number(p.desconto) ? `<div class="small muted">desc. ${money(p.desconto)}</div>` : ""}</td>
     <td class="num money">${Number(p.valor_pago) ? money(p.valor_pago) : "—"}<div class="small muted">${dataBR(p.data_pagamento)} ${esc(p.forma_pagamento || "")}</div></td>
@@ -27,7 +31,7 @@ function painelParcelas(box, parc, { porAno = false, selecionavel = false, recar
       return `<div class="card" style="margin-bottom:14px"><div class="row"><h3>Ano letivo ${k.split("|")[0]} · ${esc(ps[0].serie || "")}</h3>
         <span class="chip">Previsto ${money(t.previsto)}</span><span class="chip">Recebido ${money(t.recebido)}</span><span class="chip" style="${t.vencido ? "background:var(--err-soft)" : ""}">Vencido ${money(t.vencido)}</span>
         ${fin ? `<button class="btn sm sec right" data-nova="${ps[0].matricula_id}"><i data-lucide="plus"></i>Parcela avulsa</button>` : ""}</div>
-        <div class="scroll" style="margin-top:10px"><table><thead>${cab}</thead><tbody>${ps.sort((a, b) => a.numero - b.numero).map(linha).join("")}</tbody></table></div></div>`;
+        <div class="scroll" style="margin-top:10px"><table><thead>${cab}</thead><tbody>${ps.sort((a, b) => a.numero - b.numero || (a.parte || 0) - (b.parte || 0)).map(linha).join("")}</tbody></table></div></div>`;
     }).join("");
   } else box.innerHTML = `<div class="scroll"><table><thead>${cab}</thead><tbody>${parc.map(linha).join("")}</tbody></table></div>`;
   $$("[data-pg]", box).forEach((b) => (b.onclick = () => registrarPagamento(parc.find((p) => p.id === b.dataset.pg), recarregar)));
@@ -49,11 +53,11 @@ function resumo(ps) {
 
 function registrarPagamento(p, depois) {
   modal({
-    title: `Registrar pagamento — parcela ${p.numero}`,
+    title: `Registrar pagamento — parcela ${numParcTxt(p)}`,
     body: `<p class="muted">${esc(p.aluno_nome || "")} · vencimento ${dataBR(p.vencimento)} · valor ${money(p.valor)} · já pago ${money(p.valor_pago)}</p>
       <div class="grid"><div class="c6"><label class="req">Valor recebido (R$)</label><input name="v" data-mask="money" inputmode="decimal" value="${numIn(p.em_aberto)}"></div>
       <div class="c6"><label class="req">Data do pagamento</label><input type="date" name="d" value="${hojeISO()}"></div>
-      <div class="c6"><label>Forma</label><select name="f">${opts(["Boleto", "PIX", "Cartão", "Dinheiro", "Transferência", "Outro"], "Boleto")}</select></div>
+      <div class="c6"><label>Forma</label><select name="f">${opts(["Boleto", "PIX", "Cartão", "Dinheiro", "Transferência", "Outro"], p.forma_pagamento || "Boleto")}</select></div>
       <div><label>Observação</label><input name="o" placeholder="Ex.: pagamento parcial combinado"></div></div>
       <p class="hint">Se o valor for menor que o devido, a parcela fica como “parcial”.</p>`,
     acts: [{ label: "Cancelar", cls: "sec" }, { label: "Confirmar recebimento", cls: "ok", onClick: async (r) => {
@@ -69,7 +73,7 @@ function registrarPagamento(p, depois) {
 async function editarParcela(p, depois) {
   const hist = await sb.rpc("historico", { p_tabela: "parcelas", p_id: p.id }).then((r) => r.data || []);
   modal({
-    title: `Ajustar parcela ${p.numero} — ${p.aluno_nome || ""}`, size: "lg",
+    title: `Ajustar parcela ${numParcTxt(p)} — ${p.aluno_nome || ""}`, size: "lg",
     body: `<div class="grid">
       <div class="c4"><label>Vencimento</label><input type="date" name="vencimento" value="${p.vencimento}"></div>
       <div class="c4"><label>Valor bruto</label><input name="valor_bruto" data-mask="money" value="${numIn(p.valor_bruto)}"></div>
@@ -182,9 +186,9 @@ rota("financeiro", async (main, _, p) => {
     modal({ title: `Registrar nota fiscal (${ids.length} parcela(s))`, body: `<label>Data de emissão</label><input type="date" name="nf_data" value="${hojeISO()}"><label>Nº da nota (opcional)</label><input name="nf_numero" placeholder="Se for uma nota para várias parcelas">`,
       acts: [{ label: "Cancelar", cls: "sec" }, { label: "Registrar", onClick: async (r) => { const f = lerForm(r); await tenta(() => q(sb.from("parcelas").update({ nf_emitida: true, nf_data: f.nf_data || hojeISO(), ...(f.nf_numero ? { nf_numero: f.nf_numero } : {}) }).in("id", ids)), "Notas registradas."); recarregar(); } }] });
   };
-  const exportar = () => vis.map((x) => ({ Escola: x.escola_nome, Aluno: x.aluno_nome, Turma: x.turma_nome || x.serie, "Resp. financeiro": x.resp_nome || "", Ano: x.ano_letivo, Parcela: x.numero, Descrição: x.descricao || "", Vencimento: dataBR(x.vencimento), "Valor bruto": Number(x.valor_bruto), Desconto: Number(x.desconto), Valor: Number(x.valor), "Valor pago": Number(x.valor_pago), "Data pagamento": dataBR(x.data_pagamento), "Em aberto": Number(x.em_aberto), Situação: SIT_PARC[x.situacao][0], Boleto: x.boleto_emitido ? "Sim" : "Não", "Nota fiscal": x.nf_emitida ? "Sim" : "Não", "Nº NF": x.nf_numero || "", Observações: x.obs || "" }));
+  const exportar = () => vis.map((x) => ({ Escola: x.escola_nome, Aluno: x.aluno_nome, Turma: x.turma_nome || x.serie, "Resp. financeiro": x.resp_nome || "", Ano: x.ano_letivo, Parcela: numParcTxt(x), Descrição: x.descricao || "", Vencimento: dataBR(x.vencimento), "Valor bruto": Number(x.valor_bruto), Desconto: Number(x.desconto), Valor: Number(x.valor), "Valor pago": Number(x.valor_pago), "Data pagamento": dataBR(x.data_pagamento), "Em aberto": Number(x.em_aberto), Situação: SIT_PARC[x.situacao][0], Boleto: x.boleto_emitido ? "Sim" : "Não", "Nota fiscal": x.nf_emitida ? "Sim" : "Não", "Nº NF": x.nf_numero || "", Observações: x.obs || "" }));
   $("#bXl").onclick = () => exportXLSX(exportar(), "financeiro");
-  $("#bPdf").onclick = () => relatorioPDF("Parcelas — painel financeiro", vis.map((x) => ({ Aluno: x.aluno_nome, Turma: x.turma_nome || x.serie, Parc: x.numero, Venc: dataBR(x.vencimento), Valor: money(x.valor), Pago: money(x.valor_pago), Situação: SIT_PARC[x.situacao][0], Boleto: x.boleto_emitido ? "S" : "N", NF: x.nf_emitida ? "S" : "N" })));
+  $("#bPdf").onclick = () => relatorioPDF("Parcelas — painel financeiro", vis.map((x) => ({ Aluno: x.aluno_nome, Turma: x.turma_nome || x.serie, Parc: numParcTxt(x), Venc: dataBR(x.vencimento), Valor: money(x.valor), Pago: money(x.valor_pago), Situação: SIT_PARC[x.situacao][0], Boleto: x.boleto_emitido ? "S" : "N", NF: x.nf_emitida ? "S" : "N" })));
   atualizar();
 });
 
@@ -207,7 +211,7 @@ rota("relatorios", async (main, _, p) => {
   if (tipo === "recebimentos") {
     const r = await fetchAll(() => filtraEscola(sb.from("v_parcelas").select("*").gt("valor_pago", 0).gte("data_pagamento", de).lte("data_pagamento", ate)).order("data_pagamento"));
     titulo = `Recebimentos de ${dataBR(de)} a ${dataBR(ate)}`;
-    linhas = r.map((x) => ({ Data: dataBR(x.data_pagamento), Escola: x.escola_nome, Aluno: x.aluno_nome, Parcela: `${x.numero} (${x.ano_letivo})`, Vencimento: dataBR(x.vencimento), Forma: x.forma_pagamento || "", "Valor pago": money(x.valor_pago), NF: x.nf_emitida ? "Sim" : "Não" }));
+    linhas = r.map((x) => ({ Data: dataBR(x.data_pagamento), Escola: x.escola_nome, Aluno: x.aluno_nome, Parcela: `${numParcTxt(x)} (${x.ano_letivo})`, Vencimento: dataBR(x.vencimento), Forma: x.forma_pagamento || "", "Valor pago": money(x.valor_pago), NF: x.nf_emitida ? "Sim" : "Não" }));
     totais = { Data: "Total", "Valor pago": money(r.reduce((s, x) => s + Number(x.valor_pago), 0)) };
     nota = "Considera a data do último pagamento registrado na parcela.";
   } else if (tipo === "inadimplencia") {
@@ -220,7 +224,7 @@ rota("relatorios", async (main, _, p) => {
     const r = await fetchAll(() => filtraEscola(sb.from("v_parcelas").select("*").neq("status", "cancelada").gte("vencimento", de).lte("vencimento", ate)).order("vencimento"));
     const pend = r.filter((x) => (!x.boleto_emitido && x.situacao !== "pago") || (!x.nf_emitida && Number(x.valor_pago) > 0));
     titulo = `Boletos e notas pendentes — vencimentos de ${dataBR(de)} a ${dataBR(ate)}`;
-    linhas = pend.map((x) => ({ Vencimento: dataBR(x.vencimento), Escola: x.escola_nome, Aluno: x.aluno_nome, Parcela: x.numero, Valor: money(x.valor), Situação: SIT_PARC[x.situacao][0], "Boleto pendente": !x.boleto_emitido && x.situacao !== "pago" ? "Sim" : "", "NF pendente": !x.nf_emitida && Number(x.valor_pago) > 0 ? "Sim" : "" }));
+    linhas = pend.map((x) => ({ Vencimento: dataBR(x.vencimento), Escola: x.escola_nome, Aluno: x.aluno_nome, Parcela: numParcTxt(x), Valor: money(x.valor), Situação: SIT_PARC[x.situacao][0], "Boleto pendente": !x.boleto_emitido && x.situacao !== "pago" ? "Sim" : "", "NF pendente": !x.nf_emitida && Number(x.valor_pago) > 0 ? "Sim" : "" }));
   } else if (tipo === "indicacoes") {
     const r = await fetchAll(() => filtraEscola(sb.from("v_matriculas").select("*").eq("indicacao", true).gte("data_matricula", de).lte("data_matricula", ate)).order("data_matricula"));
     titulo = `Matrículas por indicação — ${dataBR(de)} a ${dataBR(ate)}`;

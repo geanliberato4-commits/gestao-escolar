@@ -13,8 +13,9 @@ rota("matricula", async (main, _, p) => {
   let familiaId = aluno?.familia_id || null;
   let resps = familiaId ? await q(sb.from("responsaveis").select("*").eq("familia_id", familiaId).order("created_at")) : [];
   const rema = !!anterior;
-  const base = editando || (anterior ? { ...anterior, id: null, ano_letivo: anterior.ano_letivo + 1, turma_id: null, status: "em_andamento", tipo: "rematricula", data_matricula: hojeISO(), primeiro_vencimento: null, matricula_anterior_id: anterior.id, motivo_encerramento: null, data_encerramento: null, indicacao: false, indicador_nome: null, indicador_aluno_id: null, indicacao_obs: null, obs: null } : null)
+  const base = editando || (anterior ? { ...anterior, id: null, ano_letivo: anterior.ano_letivo + 1, turma_id: null, cond_primeira: null, status: "em_andamento", tipo: "rematricula", data_matricula: hojeISO(), primeiro_vencimento: null, matricula_anterior_id: anterior.id, motivo_encerramento: null, data_encerramento: null, indicacao: false, indicador_nome: null, indicador_aluno_id: null, indicacao_obs: null, obs: null } : null)
     || { escola_id: espera?.escola_id || aluno?.escola_id || S.escola || S.escolas[0]?.id, ano_letivo: espera?.ano_pretendido || S.anoAtual + (new Date().getMonth() >= 8 ? 1 : 0), turma_id: espera?.turma_id, serie: espera?.serie, periodo: espera?.periodo, num_parcelas: 13, dia_vencimento: 10, material_forma: "Editora Netbil", desconto_tipo: "nenhum", desconto_valor: 0, status: "em_andamento", tipo: "nova", data_matricula: hojeISO() };
+  let condUI = null;
   let indicadorAluno = base.indicador_aluno_id ? await q(sb.from("alunos").select("id,nome").eq("id", base.indicador_aluno_id).maybeSingle()) : null;
 
   const titulo = editando ? "Editar matrícula" : rema ? "Rematrícula" : "Nova matrícula";
@@ -25,6 +26,7 @@ rota("matricula", async (main, _, p) => {
       <div class="card sect" id="secResp"></div>
       <div class="card sect" id="secCurso"></div>
       <div class="card sect" id="secFin"></div>
+      <div class="card sect" id="secCond"></div>
       <div class="card sect" id="secOrigem"></div>
       <div class="card sect" id="secSit"></div>
       <div class="form-acts"><button class="btn sec" onclick="history.back()">Cancelar</button><button class="btn" id="salvarMat"><i data-lucide="save"></i>${editando ? "Salvar alterações" : "Salvar matrícula"}</button></div>
@@ -156,7 +158,7 @@ rota("matricula", async (main, _, p) => {
         <span class="muted small">(${e.desconto_irmao_tipo === "valor" ? money(e.desconto_irmao_valor) : (e.desconto_irmao_valor || 0) + "%"}${e.descontos_acumulam ? ", acumula" : ", não acumula"})</span></label></div>
       <div class="c6"><label>Material didático (R$)</label><input name="valor_material" data-mask="money" inputmode="decimal" value="${numIn(base.valor_material)}"></div>
       <div class="c6"><label>Forma de pagamento do material</label><input name="material_forma" value="${esc(base.material_forma ?? "Editora Netbil")}"></div>
-      <div><label>Condições especiais</label><textarea name="condicoes_especiais" placeholder="Aparece no requerimento (condição especial)">${esc(base.condicoes_especiais)}</textarea></div>
+      <div><label>Observação de condição especial (texto livre)</label><textarea name="condicoes_especiais" placeholder="Aparece no requerimento e no contrato junto da condição da 1ª parcela">${esc(base.condicoes_especiais)}</textarea></div>
       <div id="prev" class="hint"></div></div>`;
     $$("#secFin input,#secFin select").forEach((x) => x.addEventListener("input", prever)); prever();
   };
@@ -164,6 +166,7 @@ rota("matricula", async (main, _, p) => {
     const f = lerForm($("#secFin")); const v = f.valor_mensalidade || 0;
     const d = f.desconto_tipo === "percentual" ? v * (f.desconto_valor || 0) / 100 : f.desconto_tipo === "valor" ? f.desconto_valor || 0 : 0;
     const n = f.num_parcelas || 0, p1 = f.valor_primeira_parcela > 0 ? f.valor_primeira_parcela : null;
+    condUI?.atualizar();
     $("#prev").innerHTML = v ? (p1 ? `1ª parcela <b>${money(p1)}</b> + ${n - 1} × <b>${money(v - d)}</b> = <b>${money(p1 + (v - d) * Math.max(0, n - 1))}</b>` : `Parcela estimada: <b>${money(v - d)}</b> × ${n} = <b>${money((v - d) * n)}</b>`) + `${f.aplica_desconto_irmao ? " (o desconto de irmão é aplicado na geração se houver irmão matriculado no mesmo ano)" : ""}` : "";
   }
 
@@ -193,7 +196,16 @@ rota("matricula", async (main, _, p) => {
     ${!editando ? `<div><label class="chk"><input type="checkbox" id="gerarParc" checked> Gerar as mensalidades automaticamente</label></div>` : `<div><label class="chk"><input type="checkbox" id="regerar"> Regerar mensalidades com as novas condições (só parcelas sem pagamento)</label></div>`}
   </div>`;
 
-  desenharAluno(); desenharResp(); desenharFin(); await carregarTurmas(); icons();
+  desenharAluno(); desenharResp(); desenharFin();
+  /* ---- 4b. condições especiais da 1ª parcela ---- */
+  const fin1 = () => {
+    const f = lerForm($("#secFin")), v = f.valor_mensalidade || 0, p1 = f.valor_primeira_parcela > 0 ? f.valor_primeira_parcela : 0;
+    const d = f.desconto_tipo === "percentual" ? v * (f.desconto_valor || 0) / 100 : f.desconto_tipo === "valor" ? f.desconto_valor || 0 : 0;
+    return { valor: p1 || Math.max(0, v - d), venc: p1 ? f.vencimento_primeira || f.primeiro_vencimento || hojeISO() : f.primeiro_vencimento };
+  };
+  condUI = painelCondPrimeira($("#secCond"), { cond: base.cond_primeira, podeCond: !(rema || base.tipo === "rematricula") || ehDirecao() || !!S.perfil.admin,
+    valorPadrao: () => fin1().valor, vencPadrao: () => fin1().venc });
+  await carregarTurmas(); icons();
 
   /* ---- salvar ---- */
   $("#salvarMat").onclick = async () => {
@@ -204,6 +216,7 @@ rota("matricula", async (main, _, p) => {
     if (!resps.length && !novosResp.length) return toast("Cadastre pelo menos um responsável.", true);
     if (!$("#secCurso")._per) return toast("Escolha o período: Manhã, Tarde ou Integral.", true);
     if (!exigir($("#secCurso"), ["serie"]) || !exigir($("#secFin"), ["resp_financeiro_id", "primeiro_vencimento"])) return;
+    let cond; try { cond = condUI.ler(); } catch (e) { $("#secCond").scrollIntoView({ block: "center" }); return toast(e.message, true); }
     const curso = lerForm($("#secCurso")), fin = lerForm($("#secFin")), ori = lerForm($("#secOrigem")), sit = lerForm($("#secSit"));
     curso.escola_id = $("#mEscola").value; curso.ano_letivo = Number(curso.ano_letivo);
     const lotadas = turmasEscolhidas().filter((t) => livreDe(t) <= 0);
@@ -241,11 +254,15 @@ rota("matricula", async (main, _, p) => {
       if (editando) {
         if (["cancelada", "transferida"].includes(sit.status) && !editando.data_encerramento) { reg.data_encerramento = hojeISO(); }
         reg.motivo_encerramento = sit.motivo_encerramento;
+        const chave = (x) => JSON.stringify(x ? { modo: x.modo, o: Number(x.valor_original), t: x.desc_tipo, v: Number(x.desc_valor), p: (x.partes || []).map((p) => [p.vencimento, Number(p.valor || 0), p.forma || ""]) } : null);
+        const condMudou = chave(cond) !== chave(editando.cond_primeira);
+        if ($("#regerar")?.checked) reg.cond_primeira = cond;
         mat = await q(sb.from("matriculas").update(reg).eq("id", editando.id).select().single());
+        if (condMudou && !$("#regerar")?.checked) { await q(sb.rpc("aplicar_condicao_primeira", { p_matricula: mat.id, p_cond: cond })); toast("Condição da 1ª parcela aplicada (demais mensalidades não mudaram)."); }
         if ($("#regerar")?.checked) { const n = await q(sb.rpc("gerar_parcelas", { p_matricula: mat.id, p_regerar: true })); toast(`${n} mensalidade(s) regerada(s).`); }
         if (["cancelada", "transferida"].includes(sit.status) && editando.status !== sit.status) await tratarEncerramento(mat);
       } else {
-        mat = await q(sb.from("matriculas").insert({ ...reg, aluno_id: aluno.id, tipo: rema ? "rematricula" : "nova", matricula_anterior_id: anterior?.id || null, espera_id: espera?.id || null }).select().single());
+        mat = await q(sb.from("matriculas").insert({ ...reg, cond_primeira: cond, aluno_id: aluno.id, tipo: rema ? "rematricula" : "nova", matricula_anterior_id: anterior?.id || null, espera_id: espera?.id || null }).select().single());
         if ($("#gerarParc")?.checked) await q(sb.rpc("gerar_parcelas", { p_matricula: mat.id, p_regerar: false }));
         if (espera) await q(sb.from("lista_espera").update({ status: "matriculado", aluno_id: aluno.id, matricula_id: mat.id }).eq("id", espera.id));
         if (anterior && anterior.status === "rematricula_pendente") await q(sb.from("matriculas").update({ status: "concluida" }).eq("id", anterior.id));
@@ -409,4 +426,119 @@ function relatorioPDF(titulo, linhas, { totais } = {}) {
   const html = folha(e, `<h2>${esc(titulo)}</h2><table><tr>${cols.map((c) => `<th>${esc(c)}</th>`).join("")}</tr>${linhas.map((l) => `<tr>${cols.map((c) => `<td>${esc(l[c])}</td>`).join("")}</tr>`).join("")}${totais ? `<tr>${cols.map((c) => `<th>${esc(totais[c] ?? "")}</th>`).join("")}</tr>` : ""}</table>`,
     `Emitido em ${dataHora(new Date())} por ${esc(S.perfil.nome)} · ${linhas.length} linha(s)`);
   verDocumento({ titulo, html });
+}
+
+/* ==========================================================================
+   Condições especiais da 1ª parcela (desconto e/ou parcelamento).
+   Afeta só a 1ª parcela; as demais mensalidades não mudam.
+   O servidor recalcula e confere tudo (soma das partes = valor final).
+   ========================================================================== */
+const COND_MODOS = [["integral", "Pagamento integral, sem desconto"], ["desconto", "Pagamento com desconto"], ["parcelado", "Pagamento parcelado"], ["parcelado_desconto", "Pagamento parcelado com desconto"]];
+const FORMAS_PG = ["Boleto", "PIX", "Cartão", "Dinheiro", "Transferência", "Outro"];
+const addMes = (iso, k) => { if (!iso) return ""; const [a, m, d] = iso.split("-").map(Number); const ult = new Date(a, m - 1 + k + 1, 0).getDate(); const x = new Date(a, m - 1 + k, Math.min(d, ult)); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`; };
+const r2 = (v) => Math.round((Number(v) || 0) * 100) / 100;
+
+/* calcula desconto e valor final a partir da condição */
+function calcCond(c) {
+  const orig = r2(c.valor_original);
+  const comDesc = c.modo === "desconto" || c.modo === "parcelado_desconto";
+  const desc = comDesc ? r2(c.desc_tipo === "percentual" ? orig * (Number(c.desc_valor) || 0) / 100 : c.desc_valor) : 0;
+  return { orig, desc, final: r2(orig - desc) };
+}
+
+/* descrição em texto (requerimento, contrato, histórico) */
+function textoCond(c) {
+  if (!c || !c.modo || c.modo === "integral") return "";
+  const { orig, desc, final } = c.valor_final != null ? { orig: Number(c.valor_original), desc: Number(c.desconto), final: Number(c.valor_final) } : calcCond(c);
+  const partes = [];
+  if (desc > 0) partes.push(`desconto de ${c.desc_tipo === "percentual" ? String(c.desc_valor).replace(".", ",") + "% (" + money(desc) + ")" : money(desc)} sobre ${money(orig)}, valor final ${money(final)}`);
+  if (c.modo.startsWith("parcelado")) partes.push(`dividida em ${c.partes.length} pagamentos: ${c.partes.map((p) => `${dataBR(p.vencimento)} — ${money(p.valor)}`).join("; ")}`);
+  return "1ª parcela com condição especial: " + partes.join(", ");
+}
+
+function painelCondPrimeira(box, { cond, podeCond, valorPadrao, vencPadrao, aoMudar }) {
+  let c = cond && cond.modo ? JSON.parse(JSON.stringify(cond)) : { modo: "integral", desc_tipo: "percentual", desc_valor: 0, partes: [] };
+  let origManual = !!(cond && cond.valor_original != null);
+  if (!podeCond) {
+    box.innerHTML = `<h3><i data-lucide="badge-percent"></i>Condições especiais da 1ª parcela</h3>
+      <div class="msg warn"><i data-lucide="lock"></i>Na rematrícula, condições especiais só podem ser definidas pela direção/administração.${c.modo !== "integral" ? "<br>" + esc(textoCond(c)) : ""}</div>`;
+    icons(); return { ler: () => cond || null };
+  }
+  const desenhar = () => {
+    if (!origManual) c.valor_original = r2(valorPadrao());
+    const { orig, desc, final } = calcCond(c);
+    const parc = c.modo.startsWith("parcelado"), comDesc = c.modo === "desconto" || c.modo === "parcelado_desconto";
+    if (parc && c.partes.length < 2) dividir(2, final);
+    const soma = r2(c.partes.reduce((s, p) => s + (Number(p.valor) || 0), 0));
+    box.innerHTML = `<h3><i data-lucide="badge-percent"></i>Condições especiais da 1ª parcela</h3>
+      <p class="hint" style="margin:0 0 8px">Vale só para a 1ª parcela. As demais mensalidades mantêm valores e vencimentos.</p>
+      <div class="grid">
+        <div class="c6"><label>Condição</label><select data-c="modo">${opts(COND_MODOS, c.modo)}</select></div>
+        ${c.modo !== "integral" ? `<div class="c6"><label>Valor original da 1ª parcela (R$)</label><input data-c="orig" data-mask="money" inputmode="decimal" value="${numIn(c.valor_original)}">
+          <div class="hint">${origManual ? `<a class="link" data-c="origAuto">usar o valor calculado (${money(valorPadrao())})</a>` : "Calculado das condições financeiras acima. Se houver desconto de irmão, confira."}</div></div>` : ""}
+        ${comDesc ? `<div class="c3"><label>Tipo de desconto</label><select data-c="dtipo">${opts([["percentual", "Percentual (%)"], ["valor", "Valor fixo (R$)"]], c.desc_tipo)}</select></div>
+          <div class="c3"><label>${c.desc_tipo === "percentual" ? "Desconto (%)" : "Desconto (R$)"}</label><input data-c="dval" data-mask="money" inputmode="decimal" value="${numIn(c.desc_valor)}"></div>` : ""}
+        ${c.modo === "desconto" ? `<div class="c6"><label>Vencimento da 1ª parcela</label><input type="date" data-c="venc1" value="${esc(c.partes[0]?.vencimento || vencPadrao())}"></div>` : ""}
+      </div>
+      ${c.modo !== "integral" ? `<div class="row" style="gap:10px;margin:12px 0 4px;flex-wrap:wrap">
+        <span class="chip">Valor original <b class="money">${money(orig)}</b></span>
+        ${comDesc ? `<span class="chip">Desconto <b class="money">− ${money(desc)}</b></span>` : ""}
+        <span class="chip" style="background:var(--ok-soft)">Valor final <b class="money">${money(final)}</b></span></div>` : ""}
+      ${parc ? `<div class="row" style="margin-top:12px;gap:10px;flex-wrap:wrap"><label style="margin:0">Quantidade de pagamentos</label>
+          <input type="number" data-c="qtd" min="2" max="12" value="${c.partes.length}" style="width:80px">
+          <button class="btn sm sec" type="button" data-c="igual"><i data-lucide="divide"></i>Dividir igualmente</button></div>
+        <div class="scroll" style="margin-top:8px;box-shadow:none"><table><thead><tr><th>#</th><th>Vencimento</th><th class="num">Valor (R$)</th><th>Forma de pagamento</th></tr></thead><tbody>
+          ${c.partes.map((p, i) => `<tr><td>${i + 1}</td><td><input type="date" data-pv="${i}" value="${esc(p.vencimento || "")}"></td>
+            <td><input data-pval="${i}" data-mask="money" inputmode="decimal" value="${numIn(p.valor)}" style="text-align:right"></td>
+            <td><select data-pf="${i}">${opts(FORMAS_PG, p.forma || "Boleto")}</select></td></tr>`).join("")}
+        </tbody></table></div>
+        <div class="msg ${Math.abs(soma - final) < 0.01 ? "ok" : "err"}" style="margin-top:8px">Soma dos pagamentos: <b>${money(soma)}</b> de <b>${money(final)}</b>${Math.abs(soma - final) < 0.01 ? " ✓" : (soma < final ? ` — faltam ${money(r2(final - soma))}` : ` — passou ${money(r2(soma - final))}`)}</div>` : ""}`;
+    ligar(); icons(); aoMudar && aoMudar();
+  };
+  function dividir(n, final) {
+    n = Math.max(2, Math.min(12, n || 2));
+    const cent = Math.round(final * 100), b = Math.floor(cent / n), v0 = vencPadrao();
+    const ant = c.partes;
+    c.partes = Array.from({ length: n }, (_, i) => ({ vencimento: ant[i]?.vencimento || addMes(v0, i), valor: (i === n - 1 ? cent - b * (n - 1) : b) / 100, forma: ant[i]?.forma || "Boleto" }));
+  }
+  function ligar() {
+    const g = (k) => $(`[data-c="${k}"]`, box);
+    g("modo").onchange = (e) => { c.modo = e.target.value; if (!c.modo.startsWith("parcelado")) c.partes = c.modo === "desconto" ? [{ vencimento: c.partes[0]?.vencimento || vencPadrao() }] : []; else c.partes = []; desenhar(); };
+    if (g("orig")) g("orig").onchange = (e) => { c.valor_original = num(e.target.value); origManual = true; ajustar(); };
+    if (g("origAuto")) g("origAuto").onclick = () => { origManual = false; ajustar(); };
+    if (g("dtipo")) g("dtipo").onchange = (e) => { c.desc_tipo = e.target.value; ajustar(); };
+    if (g("dval")) g("dval").onchange = (e) => { c.desc_valor = num(e.target.value); ajustar(); };
+    if (g("venc1")) g("venc1").onchange = (e) => { c.partes = [{ vencimento: e.target.value }]; };
+    if (g("qtd")) g("qtd").onchange = (e) => { if (!origManual) c.valor_original = r2(valorPadrao()); dividir(Number(e.target.value), calcCond(c).final); desenhar(); };
+    if (g("igual")) g("igual").onclick = () => { if (!origManual) c.valor_original = r2(valorPadrao()); dividir(c.partes.length, calcCond(c).final); desenhar(); };
+    $$("[data-pv]", box).forEach((x) => (x.onchange = () => { c.partes[+x.dataset.pv].vencimento = x.value; }));
+    $$("[data-pf]", box).forEach((x) => (x.onchange = () => { c.partes[+x.dataset.pf].forma = x.value; }));
+    $$("[data-pval]", box).forEach((x) => (x.onchange = () => { c.partes[+x.dataset.pval].valor = num(x.value); desenhar(); }));
+  }
+  // mudar valor/desconto: se ainda estiver dividido igualmente, redivide
+  function ajustar() {
+    const antes = c.partes.map((p) => p.valor);
+    const igual = c.partes.length >= 2 && antes.slice(0, -1).every((v) => v === antes[0]);
+    if (!origManual) c.valor_original = r2(valorPadrao());
+    if (c.modo.startsWith("parcelado") && igual) dividir(c.partes.length, calcCond(c).final);
+    desenhar();
+  }
+  desenhar();
+  return {
+    atualizar: () => { if (!origManual) ajustar(); },
+    /* devolve a condição validada (null = sem condição especial) ou lança erro */
+    ler: () => {
+      if (c.modo === "integral") return null;
+      const { orig, desc, final } = calcCond(c);
+      if (!(orig > 0)) throw new Error("Informe o valor original da 1ª parcela.");
+      if ((c.modo === "desconto" || c.modo === "parcelado_desconto") && !(desc > 0 && desc <= orig)) throw new Error("Informe um desconto válido para a 1ª parcela (maior que zero e até o valor original).");
+      if (c.modo.startsWith("parcelado")) {
+        if (c.partes.some((p) => !p.vencimento || !(Number(p.valor) > 0))) throw new Error("Preencha vencimento e valor de todos os pagamentos da 1ª parcela.");
+        const soma = r2(c.partes.reduce((s, p) => s + Number(p.valor), 0));
+        if (Math.abs(soma - final) >= 0.01) throw new Error(`A soma dos pagamentos da 1ª parcela (${money(soma)}) precisa ser igual ao valor final (${money(final)}).`);
+      }
+      const partes = c.modo === "desconto" ? (c.partes[0]?.vencimento ? [{ vencimento: c.partes[0].vencimento }] : []) : c.partes.map((p) => ({ vencimento: p.vencimento, valor: r2(p.valor), forma: p.forma || "Boleto" }));
+      return { modo: c.modo, valor_original: orig, desc_tipo: c.desc_tipo, desc_valor: Number(c.desc_valor) || 0, partes };
+    },
+  };
 }

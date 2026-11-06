@@ -311,7 +311,7 @@ const PLACEHOLDERS = [
   "responsaveis.lista", "responsaveis.tabela",
   "financeiro.valor_curso", "financeiro.anuidade", "financeiro.mensalidade", "financeiro.desconto", "financeiro.valor_parcela", "financeiro.primeira_parcela", "financeiro.primeira_parcela_bruta", "financeiro.primeira_vencimento",
   "financeiro.parcelas", "financeiro.parcelas_extenso", "financeiro.dia_vencimento", "financeiro.dia_extenso", "financeiro.inicio_demais", "financeiro.meses", "financeiro.primeiro_vencimento",
-  "financeiro.condicoes", "financeiro.cond_valor_curso", "financeiro.cond_primeira", "financeiro.cond_demais", "financeiro.material", "financeiro.material_forma", "financeiro.tabela_parcelas", "financeiro.total_pago",
+  "financeiro.condicoes", "financeiro.condicao_primeira", "financeiro.cond_valor_curso", "financeiro.cond_primeira", "financeiro.cond_demais", "financeiro.material", "financeiro.material_forma", "financeiro.tabela_parcelas", "financeiro.total_pago",
   "data.hoje", "data.extenso", "usuario.nome",
   "campo.frequencia", "campo.periodo_referencia", "campo.serie_destino", "campo.texto",
 ];
@@ -351,19 +351,25 @@ async function contextoMatricula(matriculaId, campos = {}) {
   const sep = Number(m.valor_primeira_parcela) > 0;
   const n = m.num_parcelas;
   const descCalc = m.desconto_tipo === "percentual" ? m.valor_mensalidade * m.desconto_valor / 100 : m.desconto_tipo === "valor" ? Number(m.desconto_valor) : 0;
-  const p1 = parc.find((p) => p.numero === 1);
-  const demais = sep ? parc.filter((p) => p.numero > 1) : parc;
+  const cond = m.cond_primeira && m.cond_primeira.modo && m.cond_primeira.modo !== "integral" ? m.cond_primeira : null;
+  const p1s = parc.filter((p) => p.numero === 1).sort((a, b) => (a.parte || 0) - (b.parte || 0));
+  const p1 = p1s[0];
+  const demais = sep || cond ? parc.filter((p) => p.numero > 1) : parc;
   const desc = demais.length ? Number(demais[0].desconto) : descCalc;
   const valorDemais = demais.length ? Number(demais[0].valor) : Number(m.valor_mensalidade) - desc;
-  const primeira = p1 ? Number(p1.valor) : sep ? Number(m.valor_primeira_parcela) : valorDemais;
-  const primeiraBruta = sep ? Number(m.valor_primeira_parcela) : Number(m.valor_mensalidade);
+  const primeira = p1s.length ? p1s.reduce((s, p) => s + Number(p.valor), 0) : cond?.valor_final != null ? Number(cond.valor_final) : sep ? Number(m.valor_primeira_parcela) : valorDemais;
+  const primeiraBruta = cond ? Number(cond.valor_original) : sep ? Number(m.valor_primeira_parcela) : Number(m.valor_mensalidade);
   const valorCurso = primeiraBruta + Number(m.valor_mensalidade) * Math.max(0, n - 1);
   const anuidade = parc.length ? parc.reduce((s, p) => s + Number(p.valor), 0) : primeira + valorDemais * Math.max(0, n - 1);
   const pago = parc.reduce((s, p) => s + Number(p.valor_pago || 0), 0);
   const venc = parc.map((p) => p.vencimento).sort();
   const vencP1 = p1?.vencimento || (sep ? m.vencimento_primeira || m.data_matricula : m.primeiro_vencimento);
+  // 1ª parcela dividida: "10/01/2027 e 10/02/2027, em 2 pagamentos de R$ 450,00"
+  const partesP1 = p1s.length > 1 ? p1s : cond?.modo?.startsWith("parcelado") ? (cond.partes || []) : [];
+  const listaE = (xs) => (xs.length > 1 ? xs.slice(0, -1).join(", ") + " e " + xs[xs.length - 1] : xs[0] || "");
+  const vencP1Txt = partesP1.length > 1 ? `${listaE(partesP1.map((p) => dataBR(p.vencimento)))}, em ${partesP1.length} pagamentos ${partesP1.every((p) => Number(p.valor) === Number(partesP1[0].valor)) ? "de " + money(partesP1[0].valor) : "(" + listaE(partesP1.map((p) => money(p.valor))) + ")"}` : dataBR(vencP1);
   const inicioDemais = demais[0]?.vencimento || m.primeiro_vencimento;
-  const temCond = desc > 0 || !!m.condicoes_especiais;
+  const temCond = desc > 0 || !!m.condicoes_especiais || !!cond;
   const filiacao = [a.mae_nome, a.pai_nome].filter(Boolean).join(" e ");
   const tels = (...xs) => [...new Set(xs.filter(Boolean))].join(" / ");
   const ctx = {
@@ -386,14 +392,15 @@ async function contextoMatricula(matriculaId, campos = {}) {
     "responsaveis.tabela": `<table><tr><th>Nome</th><th>Parentesco</th><th>CPF</th><th>Telefone</th><th>E-mail</th></tr>${resps.map((r) => `<tr><td>${esc(r.nome)}</td><td>${esc(r.parentesco)}</td><td>${esc(fmtCPF(r.cpf))}</td><td>${esc(r.telefone)}</td><td>${esc(r.email)}</td></tr>`).join("")}</table>`,
     "financeiro.valor_curso": money(valorCurso), "financeiro.anuidade": money(anuidade), "financeiro.mensalidade": money(m.valor_mensalidade),
     "financeiro.desconto": money(desc), "financeiro.valor_parcela": money(valorDemais), "financeiro.primeira_parcela": money(primeira), "financeiro.primeira_parcela_bruta": money(primeiraBruta),
-    "financeiro.primeira_vencimento": dataBR(vencP1), "financeiro.parcelas": n, "financeiro.parcelas_extenso": extenso(n),
+    "financeiro.primeira_vencimento": vencP1Txt, "financeiro.parcelas": n, "financeiro.parcelas_extenso": extenso(n),
     "financeiro.dia_vencimento": m.dia_vencimento || (inicioDemais ? Number(inicioDemais.slice(8)) : ""), "financeiro.dia_extenso": extenso(m.dia_vencimento || (inicioDemais ? Number(inicioDemais.slice(8)) : "")),
     "financeiro.inicio_demais": mesAno(inicioDemais), "financeiro.primeiro_vencimento": dataBR(m.primeiro_vencimento || venc[0]),
     "financeiro.meses": venc.length ? (venc[0].slice(0, 7) === venc[venc.length - 1].slice(0, 7) ? mesAno(venc[0]) : `${mesAno(venc[0])} a ${mesAno(venc[venc.length - 1])}`) : "",
-    "financeiro.condicoes": [m.desconto_motivo && "Desconto: " + m.desconto_motivo, m.condicoes_especiais].filter(Boolean).join(". "),
-    "financeiro.cond_valor_curso": temCond && desc > 0 ? money(anuidade) : "", "financeiro.cond_primeira": temCond && desc > 0 ? money(primeira) : "", "financeiro.cond_demais": temCond && desc > 0 ? money(valorDemais) : "",
+    "financeiro.condicoes": [cond && textoCond(cond), m.desconto_motivo && "Desconto: " + m.desconto_motivo, m.condicoes_especiais].filter(Boolean).join(". "),
+    "financeiro.condicao_primeira": cond ? textoCond(cond) : "",
+    "financeiro.cond_valor_curso": temCond && (desc > 0 || cond) ? money(anuidade) : "", "financeiro.cond_primeira": temCond && (desc > 0 || cond) ? money(primeira) : "", "financeiro.cond_demais": temCond && (desc > 0 || cond) ? money(valorDemais) : "",
     "financeiro.material": m.valor_material ? money(m.valor_material) : "", "financeiro.material_forma": m.material_forma,
-    "financeiro.tabela_parcelas": parc.length ? `<table><tr><th>Parcela</th><th>Vencimento</th><th>Valor</th></tr>${parc.map((p) => `<tr><td>${p.numero}/${parc.length}</td><td>${dataBR(p.vencimento)}</td><td>${money(p.valor)}</td></tr>`).join("")}</table>` : "",
+    "financeiro.tabela_parcelas": parc.length ? `<table><tr><th>Parcela</th><th>Vencimento</th><th>Valor</th></tr>${parc.map((p) => `<tr><td>${p.numero}/${n}${p.partes ? ` (pagamento ${p.parte}/${p.partes})` : ""}</td><td>${dataBR(p.vencimento)}</td><td>${money(p.valor)}</td></tr>`).join("")}</table>` : "",
     "financeiro.total_pago": money(pago),
     "data.hoje": dataBR(hojeISO()), "data.extenso": dataExtenso(), "usuario.nome": S.perfil.nome,
   };

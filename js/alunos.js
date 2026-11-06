@@ -245,6 +245,7 @@ const FICHA = {
         <div><span>Mensalidade</span><b class="money">${money(m.valor_mensalidade)} × ${m.num_parcelas}</b></div>
         <div><span>Desconto</span><b>${m.desconto_tipo === "nenhum" ? "—" : m.desconto_tipo === "percentual" ? m.desconto_valor + "%" : money(m.desconto_valor)}${m.aplica_desconto_irmao ? " + irmão" : ""}</b></div>
         <div><span>Por indicação?</span><b>${m.indicacao ? "Sim — " + esc(m.indicador_aluno_nome || m.indicador_nome || "") : "Não"}</b></div>
+        ${m.cond_primeira?.modo && m.cond_primeira.modo !== "integral" ? `<div style="grid-column:1/-1"><span>Condição especial</span><b>${esc(textoCond(m.cond_primeira))}</b></div>` : ""}
         ${m.motivo_encerramento ? `<div><span>Encerramento</span><b>${dataBR(m.data_encerramento)} — ${esc(m.motivo_encerramento)}</b></div>` : ""}
       </div>${m.obs ? `<p class="small muted" style="margin-top:10px">${esc(m.obs)}</p>` : ""}</div>`).join("")}</div>`
       : vazio("Sem matrículas. Use o botão Matrícula acima.", "clipboard-list");
