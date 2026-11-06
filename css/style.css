@@ -415,3 +415,5 @@ a.kpi:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(20,25,60,.10)
 .cal-it.pago{border-left-color:var(--ok);background:var(--ok-soft)}
 .cal-it.atrasado{border-left-color:var(--err);background:var(--err-soft)}
 @media(max-width:760px){.cal{grid-template-columns:1fr}.cal-h,.cal-d.vazio{display:none}.cal-d{min-height:0}.cal-d:not(:has(.cal-it)){display:none}}
+.folha.pdf .vazio{background:none}
+.folha.pdf{font-size:12.5px}

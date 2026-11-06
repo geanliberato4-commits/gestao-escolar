@@ -238,20 +238,38 @@ function folha(escola, corpo, rodape = "") {
     <small>${esc([escola?.endereco, escola?.cidade].filter(Boolean).join(" · "))}</small>
     <small>${esc([escola?.telefone, escola?.email, escola?.cnpj && "CNPJ " + escola.cnpj].filter(Boolean).join(" · "))}</small></div></div>${corpo}${rodape ? `<div class="rodape">${rodape}</div>` : ""}</div>`;
 }
+const DOC_PAGINA = (html, titulo, auto) => `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(titulo)}</title>
+<link rel="stylesheet" href="${CSS_DOC()}"><style>body{background:#fff;margin:0;padding:16px}.folha{box-shadow:none;max-width:800px;margin:0 auto}@media print{body{padding:0}.folha{padding:0;max-width:none}}@page{margin:16mm 14mm}</style></head>
+<body>${html}${auto ? `<script>window.addEventListener("load",function(){setTimeout(function(){window.focus();window.print();},300);});<\/script>` : ""}</body></html>`;
+/* imprimir / salvar como PDF pelo próprio navegador: abre o documento numa aba e chama a impressão
+   (funciona também no celular, onde a impressão de quadros escondidos falha) */
 function imprimir(html, titulo = "Documento") {
+  const w = window.open("", "_blank");
+  if (w) { w.document.open(); w.document.write(DOC_PAGINA(html, titulo, true)); w.document.close(); return; }
   const f = document.createElement("iframe"); f.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0";
   document.body.appendChild(f);
-  const d = f.contentDocument;
-  d.open(); d.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(titulo)}</title><link rel="stylesheet" href="${CSS_DOC()}"><style>body{background:#fff}.folha{box-shadow:none;padding:0;max-width:none}@page{margin:18mm 16mm}</style></head><body>${html}</body></html>`); d.close();
-  f.onload = () => { setTimeout(() => { f.contentWindow.focus(); f.contentWindow.print(); setTimeout(() => f.remove(), 2000); }, 250); };
+  f.onload = () => { setTimeout(() => { try { f.contentWindow.focus(); f.contentWindow.print(); } finally { setTimeout(() => f.remove(), 3000); } }, 400); };
+  f.srcdoc = DOC_PAGINA(html, titulo, false);
 }
+/* gera o PDF. O elemento entregue ao gerador NÃO pode estar posicionado fora da tela (isso deixava o PDF em branco);
+   a escala é limitada para não estourar o tamanho máximo de imagem do celular (iPhone). */
 async function pdfBlob(html) {
-  const box = document.createElement("div"); box.style.cssText = "position:fixed;left:-10000px;top:0;width:794px;background:#fff";
-  box.innerHTML = html; const el = box.firstElementChild; if (el) { el.style.boxShadow = "none"; el.style.maxWidth = "none"; }
-  document.body.appendChild(box);
+  const box = document.createElement("div");
+  box.style.cssText = "position:absolute;left:0;top:0;width:718px;height:0;overflow:hidden;opacity:0;pointer-events:none";
+  box.innerHTML = html; document.body.appendChild(box);
+  const el = box.firstElementChild || box;
+  el.style.boxShadow = "none"; el.style.maxWidth = "none"; el.style.margin = "0"; el.style.padding = "0"; el.classList.add("pdf");
   try {
-    return await html2pdf().set({ margin: [12, 10, 14, 10], image: { type: "jpeg", quality: 0.96 }, html2canvas: { scale: 2, useCORS: true },
-      jsPDF: { unit: "mm", format: "a4", orientation: "portrait" }, pagebreak: { mode: ["css", "legacy"], avoid: ["tr", ".cert", ".assinaturas"] } }).from(box).outputPdf("blob");
+    await Promise.all([...el.querySelectorAll("img")].map((i) => (i.complete ? null : new Promise((r) => { i.onload = i.onerror = r; }))));
+    if (document.fonts?.ready) await document.fonts.ready;
+    const alt = Math.max(el.scrollHeight, 1123);
+    const escala = Math.max(1, Math.min(2, Math.sqrt(15e6 / (718 * alt))));
+    return await html2pdf().set({
+      margin: [12, 10, 14, 10], image: { type: "jpeg", quality: 0.95 },
+      html2canvas: { scale: escala, useCORS: true, backgroundColor: "#ffffff", scrollX: 0, scrollY: 0 },
+      jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+      pagebreak: { mode: ["css", "legacy"], avoid: ["tr", ".cert", ".assinaturas", "h3"] },
+    }).from(el).outputPdf("blob");
   } finally { box.remove(); }
 }
 async function baixarPDF(html, nome) {
