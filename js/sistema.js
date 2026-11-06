@@ -55,7 +55,7 @@ rota("turmas", async (main, _, p) => {
     $("#tBox").innerHTML = l.length ? `<div class="scroll"><table><thead><tr>${S.escola ? "" : "<th>Escola</th>"}<th>Turma</th><th>Série</th><th>Período</th><th>Horário</th><th class="num">Capac.</th><th class="num">Matric.</th><th class="num">Vagas</th><th class="num">Mensalidade</th><th></th></tr></thead><tbody>
       ${l.map((t) => `<tr>${S.escola ? "" : `<td>${esc(t.escola_nome)}</td>`}<td><b>${esc(t.nome)}</b> ${t.ativa ? "" : '<span class="tag off">Inativa</span>'}</td><td>${esc(t.serie)}</td><td>${esc(t.periodo)}</td><td>${hora(t.hora_entrada)}–${hora(t.hora_saida)}</td>
         <td class="num">${t.capacidade}</td><td class="num">${t.matriculados}</td><td class="num">${t.vagas <= 0 ? '<span class="tag err">Lotada</span>' : t.vagas}</td><td class="num money">${t.mensalidade_padrao ? money(t.mensalidade_padrao) : "—"}</td>
-        <td class="act">${edit ? `<button class="btn sm sec" data-t="${t.id}"><i data-lucide="pencil"></i></button>` : ""}</td></tr>`).join("")}</tbody></table></div>` : vazio(`Nenhuma turma em ${ano}.`, "school");
+        <td class="act"><a class="btn sm sec" href="#/alunos?ano=${ano}&turma=${t.id}" title="Lista de alunos"><i data-lucide="users"></i>Alunos</a>${edit ? `<button class="btn sm sec" data-t="${t.id}"><i data-lucide="pencil"></i></button>` : ""}</td></tr>`).join("")}</tbody></table></div>` : vazio(`Nenhuma turma em ${ano}.`, "school");
     $$("[data-t]").forEach((b) => (b.onclick = () => editarTurma(ts.find((t) => t.id === b.dataset.t))));
     icons();
   };

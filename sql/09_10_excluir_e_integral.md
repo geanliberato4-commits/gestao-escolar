@@ -1,0 +1,1 @@
+-- Migrações 09 (excluir_aluno) e 10 (período integral: matriculas.turma2_id, gatilho tg_matricula_turmas, v_turmas conta as duas turmas) aplicadas no Supabase.

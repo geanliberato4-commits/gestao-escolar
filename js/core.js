@@ -315,9 +315,10 @@ const mesAno = (d) => (d ? `${MESES[Number(d.slice(5, 7)) - 1]} de ${d.slice(0, 
 async function contextoMatricula(matriculaId, campos = {}) {
   const m = await q(sb.from("matriculas").select("*").eq("id", matriculaId).single());
   const a = await q(sb.from("alunos").select("*").eq("id", m.aluno_id).single());
-  const [e, t, resps, parc] = await Promise.all([
+  const [e, t, t2, resps, parc] = await Promise.all([
     q(sb.from("escolas").select("*").eq("id", m.escola_id).single()),
     m.turma_id ? q(sb.from("turmas").select("*").eq("id", m.turma_id).single()) : null,
+    m.turma2_id ? q(sb.from("turmas").select("*").eq("id", m.turma2_id).single()) : null,
     q(sb.from("responsaveis").select("*").eq("familia_id", a.familia_id).order("created_at")),
     sb.from("parcelas").select("*").eq("matricula_id", matriculaId).neq("status", "cancelada").order("numero").then((r) => r.data || []),
   ]);
@@ -350,7 +351,7 @@ async function contextoMatricula(matriculaId, campos = {}) {
     "aluno.email": a.email || resps.find((r) => r.email)?.email, "aluno.telefones": tels(a.telefone, ...resps.flatMap((r) => [r.telefone, r.telefone2])),
     "aluno.mae": a.mae_nome, "aluno.pai": a.pai_nome, "aluno.filiacao": filiacao,
     "matricula.ano_letivo": m.ano_letivo, "matricula.curso": /ano/i.test(m.serie || "") ? "Ensino Fundamental" : "Educação Infantil", "matricula.serie": m.serie,
-    "matricula.turma": t?.nome, "matricula.periodo": m.periodo, "matricula.entrada": hora(m.hora_entrada), "matricula.saida": hora(m.hora_saida),
+    "matricula.turma": t2 ? `${t.nome} e ${t2.nome}` : t?.nome, "matricula.periodo": m.periodo, "matricula.entrada": hora(m.hora_entrada), "matricula.saida": hora(m.hora_saida),
     "matricula.horario": m.hora_entrada ? `${hora(m.hora_entrada)} às ${hora(m.hora_saida)}` : "", "matricula.tipo": m.tipo === "rematricula" ? "Rematrícula" : "Matrícula nova",
     "matricula.data": dataBR(m.data_matricula), "matricula.status": STATUS_MAT[m.status]?.[0], "matricula.obs": m.obs,
     "responsavel.nome": rf.nome, "responsavel.parentesco": rf.parentesco, "responsavel.cpf": fmtCPF(rf.cpf), "responsavel.rg": rf.rg,

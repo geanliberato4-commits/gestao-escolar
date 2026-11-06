@@ -141,7 +141,13 @@ async function validarLinhas(linhas) {
     const k = normal(r.nome || "") + "|" + r.nascimento;
     if (jaTem.has(k)) erros.push("Aluno já cadastrado no sistema");
     if (vistos.has(k)) erros.push("Aluno repetido na planilha"); vistos.add(k);
-    const t = turmas.find((x) => x.escola_id === r.escola_id && x.ano_letivo === r.ano && chaveOpcao(x.serie) === chaveOpcao(r.serie) && x.periodo === r.periodo);
+    const perBusca = r.periodo === "Integral" && !turmas.some((x) => x.escola_id === r.escola_id && x.ano_letivo === r.ano && chaveOpcao(x.serie) === chaveOpcao(r.serie) && x.periodo === "Integral") ? "Manhã" : r.periodo;
+    const t = turmas.find((x) => x.escola_id === r.escola_id && x.ano_letivo === r.ano && chaveOpcao(x.serie) === chaveOpcao(r.serie) && x.periodo === perBusca);
+    if (t && r.periodo === "Integral" && perBusca === "Manhã") {
+      const tarde = turmas.find((x) => x.escola_id === r.escola_id && x.ano_letivo === r.ano && chaveOpcao(x.serie) === chaveOpcao(r.serie) && x.periodo === "Tarde");
+      if (!tarde) avisos.push("Integral sem turma da tarde: entra só na turma da manhã");
+      else if (!horaTxt(l.saida)) l.saida = hora(tarde.hora_saida);
+    }
     r.turma = t || null; if (!t) avisos.push("Turma não encontrada: entra sem turma (não ocupa vaga)");
     r.entrada = horaTxt(l.entrada) || (t ? hora(t.hora_entrada) : null); r.saida = horaTxt(l.saida) || (t ? hora(t.hora_saida) : null);
     Object.assign(r, {

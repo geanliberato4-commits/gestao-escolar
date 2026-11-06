@@ -89,12 +89,12 @@ rota("alunos", async (main, _, p) => {
       <select id="fTurma"><option value="">Todas as turmas</option></select>
       <select id="fStatus">${opts(Object.entries(STATUS_MAT).map(([k, v]) => [k, v[0]]), p.status, "Todas as situações")}<option value="sem">Sem matrícula no ano</option></select>
       <label class="chk"><input type="checkbox" id="fInat" ${p.inat ? "checked" : ""}> Inativos</label>
-      <button class="btn sec" id="xl"><i data-lucide="sheet"></i>Excel</button>
+      <button class="btn sec" id="xl"><i data-lucide="sheet"></i>Excel</button><button class="btn sec" id="lpdf"><i data-lucide="printer"></i>Lista</button>
     </div><div id="lista">${carregando()}</div>`;
   icons();
   const [alunos, mats, turmas] = await Promise.all([
     fetchAll(() => filtraEscola(sb.from("alunos").select("id,nome,nascimento,escola_id,ativo,mae_nome,familia_id")).order("nome")),
-    fetchAll(() => filtraEscola(sb.from("v_matriculas").select("aluno_id,serie,turma_nome,turma_id,status,periodo,resp_nome").eq("ano_letivo", ano))),
+    fetchAll(() => filtraEscola(sb.from("v_matriculas").select("aluno_id,serie,turma_nome,turma_id,turma2_id,turma2_nome,status,periodo,resp_nome").eq("ano_letivo", ano))),
     q(filtraEscola(sb.from("turmas").select("id,nome,escola_id").eq("ano_letivo", ano)).order("nome")),
   ]);
   $("#fTurma").innerHTML = opts(turmas.map((t) => [t.id, t.nome + (S.escola ? "" : " — " + escolaNome(t.escola_id))]), p.turma, "Todas as turmas");
@@ -103,17 +103,21 @@ rota("alunos", async (main, _, p) => {
   const desenhar = () => {
     const f = normal($("#fNome").value), tu = $("#fTurma").value, st = $("#fStatus").value, inat = $("#fInat").checked;
     linhas = alunos.filter((a) => (inat || a.ativo) && (!f || normal(a.nome).includes(f))).map((a) => ({ a, m: mapa[a.id] }))
-      .filter(({ m }) => (!tu || m?.turma_id === tu) && (!st || (st === "sem" ? !m : m?.status === st)));
+      .filter(({ m }) => (!tu || m?.turma_id === tu || m?.turma2_id === tu) && (!st || (st === "sem" ? !m : m?.status === st)));
     $("#lista").innerHTML = linhas.length ? `<div class="scroll"><table><thead><tr><th>Aluno</th><th>Nascimento</th>${S.escola ? "" : "<th>Escola</th>"}<th>Série / turma ${ano}</th><th>Situação</th><th>Resp. financeiro</th></tr></thead><tbody>
       ${linhas.map(({ a, m }) => `<tr><td><a class="link" href="#/aluno/${a.id}">${esc(a.nome)}</a> ${a.ativo ? "" : '<span class="tag off">Inativo</span>'}<div class="small muted">${esc(a.mae_nome ? "Mãe: " + a.mae_nome : "")}</div></td>
         <td>${dataBR(a.nascimento)}</td>${S.escola ? "" : `<td>${esc(escolaNome(a.escola_id))}</td>`}
-        <td>${m ? esc(m.serie) + (m.turma_nome ? `<div class="small muted">${esc(m.turma_nome)} · ${esc(m.periodo || "")}</div>` : "") : '<span class="muted">—</span>'}</td>
+        <td>${m ? esc(m.serie) + (m.turma_nome ? `<div class="small muted">${esc(m.turma_nome)}${m.turma2_nome ? " + " + esc(m.turma2_nome) : ""} · ${esc(m.periodo || "")}</div>` : "") : '<span class="muted">—</span>'}</td>
         <td>${m ? tag(STATUS_MAT, m.status) : '<span class="tag off">Sem matrícula</span>'}</td><td>${esc(m?.resp_nome || "")}</td></tr>`).join("")}
       </tbody></table></div><p class="muted small">${linhas.length} aluno(s)</p>` : vazio("Nenhum aluno encontrado com esses filtros.", "users");
     icons();
   };
   ["fNome", "fTurma", "fStatus", "fInat"].forEach((id) => $("#" + id).addEventListener("input", desenhar));
   $("#fAno").onchange = (e) => ir(`#/alunos?ano=${e.target.value}`);
+  $("#lpdf").onclick = () => {
+    const tSel = turmas.find((t) => t.id === $("#fTurma").value);
+    relatorioPDF(tSel ? `Lista da turma ${tSel.nome} — ${ano}` : `Lista de alunos — ${ano}`, linhas.map(({ a, m }, i) => ({ "Nº": i + 1, Aluno: a.nome, Nascimento: dataBR(a.nascimento), Série: m?.serie || "", Período: m?.periodo || "", "Resp. financeiro": m?.resp_nome || "" })));
+  };
   $("#xl").onclick = () => exportXLSX(linhas.map(({ a, m }) => ({ Aluno: a.nome, Nascimento: dataBR(a.nascimento), Escola: escolaNome(a.escola_id), Ano: ano, Série: m?.serie || "", Turma: m?.turma_nome || "", Período: m?.periodo || "", Situação: m ? STATUS_MAT[m.status][0] : "Sem matrícula", "Resp. financeiro": m?.resp_nome || "", Ativo: a.ativo ? "Sim" : "Não" })), "alunos-" + ano);
   desenhar();
 });
@@ -230,7 +234,7 @@ const FICHA = {
 
   async matriculas({ a, mats, box, recarregar }) {
     box.innerHTML = mats.length ? `<div class="stack">${mats.map((m) => `<div class="card">
-      <div class="row"><h3>${m.ano_letivo} · ${esc(m.serie)} ${m.turma_nome ? "· " + esc(m.turma_nome) : ""}</h3>${tag(STATUS_MAT, m.status)}
+      <div class="row"><h3>${m.ano_letivo} · ${esc(m.serie)} ${m.turma_nome ? "· " + esc(m.turma_nome) + (m.turma2_nome ? " + " + esc(m.turma2_nome) : "") : ""}</h3>${tag(STATUS_MAT, m.status)}
         <span class="tag">${m.tipo === "rematricula" ? "Rematrícula" : "Matrícula nova"}</span>
         <div class="right row">${pode("matricula") ? `<button class="btn sm sec" data-ed="${m.id}"><i data-lucide="pencil"></i>Editar</button>` : ""}
         <button class="btn sm sec" data-req="${m.id}"><i data-lucide="file-text"></i>Requerimento</button>

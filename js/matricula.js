@@ -74,34 +74,62 @@ rota("matricula", async (main, _, p) => {
 
   /* ---- 3. curso ---- */
   let turmas = [];
+  const minhas = new Set([editando?.turma_id, editando?.turma2_id].filter(Boolean));
+  const livreDe = (t) => (t ? t.vagas + (minhas.has(t.id) ? 1 : 0) : 0);
+  const parDe = (t) => turmas.find((x) => x.serie === t.serie && x.periodo === (t.periodo === "Manhã" ? "Tarde" : "Manhã"));
+  /* opções de turma conforme o período: no integral, cada série com manhã e tarde vira uma opção só */
+  const montarOpcoes = () => {
+    const per = $("#secCurso")._per, sel = $("#mTurma").value || base.turma_id;
+    let lista;
+    if (per === "Integral") {
+      const manhas = turmas.filter((t) => t.periodo === "Manhã" && parDe(t));
+      lista = [...manhas.map((t) => { const t2 = parDe(t); return [t.id, `${t.serie} — Integral (manhã + tarde) — ${Math.min(livreDe(t), livreDe(t2))} vaga(s)`]; }),
+               ...turmas.filter((t) => t.periodo === "Integral").map((t) => [t.id, `${t.nome} — ${livreDe(t)} vaga(s)`])];
+      const alvo = turmas.find((t) => t.id === sel); const manha = alvo?.periodo === "Tarde" ? parDe(alvo)?.id : sel;
+      $("#mTurma").innerHTML = opts(lista, manha, lista.length ? "Selecione a série" : "Nenhuma série com turma de manhã e de tarde");
+    } else {
+      lista = turmas.filter((t) => !per || t.periodo === per).map((t) => [t.id, `${t.nome}${t.nome.includes(t.periodo) ? "" : " — " + t.periodo} — ${livreDe(t)} vaga(s)`]);
+      const alvo = turmas.find((t) => t.id === sel); const mesmo = alvo && per && alvo.periodo !== per ? turmas.find((x) => x.serie === alvo.serie && x.periodo === per)?.id : sel;
+      $("#mTurma").innerHTML = opts(lista, mesmo, lista.length ? "Selecione a turma" : "Nenhuma turma neste período");
+    }
+    avisoVaga();
+  };
   const carregarTurmas = async () => {
     const esc_ = $("#mEscola").value, ano = $("#mAno").value;
     turmas = await q(sb.from("v_turmas").select("*").eq("escola_id", esc_).eq("ano_letivo", ano).eq("ativa", true).order("serie").order("nome"));
-    $("#mTurma").innerHTML = opts(turmas.map((t) => [t.id, `${t.nome} — ${t.periodo} — ${t.vagas + (t.id === editando?.turma_id ? 1 : 0)} vaga(s)`]), base.turma_id, turmas.length ? "Selecione a turma" : "Nenhuma turma cadastrada neste ano");
-    avisoVaga();
+    montarOpcoes();
+  };
+  const turmasEscolhidas = () => {
+    const t = turmas.find((x) => x.id === $("#mTurma").value); if (!t) return [];
+    return $("#secCurso")._per === "Integral" && t.periodo !== "Integral" ? [t, parDe(t)].filter(Boolean) : [t];
   };
   const avisoVaga = () => {
-    const t = turmas.find((x) => x.id === $("#mTurma").value);
-    const livre = t ? t.vagas + (t.id === editando?.turma_id ? 1 : 0) : null;
-    $("#vagaMsg").innerHTML = !t ? "" : livre <= 0 ? `<div class="msg err"><i data-lucide="alert-triangle"></i>Turma lotada (${t.matriculados}/${t.capacidade}). Considere a lista de espera.</div>`
-      : livre <= 2 ? `<div class="msg warn"><i data-lucide="alert-circle"></i>Quase lotada: restam ${livre} vaga(s).</div>` : `<div class="msg ok"><i data-lucide="check"></i>${livre} vaga(s) disponível(is).</div>`;
+    const ts = turmasEscolhidas();
+    $("#vagaMsg").innerHTML = !ts.length ? "" : ts.map((t) => { const livre = livreDe(t);
+      return livre <= 0 ? `<div class="msg err"><i data-lucide="alert-triangle"></i>${esc(t.nome)} lotada (${t.matriculados}/${t.capacidade}). Considere a lista de espera.</div>`
+        : livre <= 2 ? `<div class="msg warn"><i data-lucide="alert-circle"></i>${esc(t.nome)}: restam ${livre} vaga(s).</div>` : `<div class="msg ok"><i data-lucide="check"></i>${esc(t.nome)}: ${livre} vaga(s) disponível(is).</div>`; }).join("")
+      + (ts.length === 2 ? `<p class="hint">Período integral: a criança aparece nas listas das duas turmas, com uma única matrícula, contrato e financeiro.</p>` : "");
     icons();
   };
   $("#secCurso").innerHTML = `<h3><i data-lucide="school"></i>Escola, ano e turma</h3><div class="grid">
     <div class="c4"><label class="req">Escola</label><select id="mEscola" name="escola_id" ${editando ? "disabled" : ""}>${escolaOpts(base.escola_id)}</select></div>
     <div class="c2"><label class="req">Ano letivo</label><select id="mAno" name="ano_letivo">${anosOpts(base.ano_letivo)}</select></div>
+    <div class="c6"><label class="req">Período</label><div class="radio-row">${["Manhã", "Tarde", "Integral"].map((x) => `<label><input type="radio" name="periodo" value="${x}" ${base.periodo === x ? "checked" : ""}> ${x}</label>`).join("")}</div></div>
     <div class="c6"><label>Turma</label><select id="mTurma" name="turma_id"></select></div>
-    <div class="c4"><label class="req">Série / ano</label><input name="serie" value="${esc(base.serie)}"></div>
-    <div class="c4"><label class="req">Período</label><select name="periodo">${opts(PERIODOS, base.periodo, "—")}</select></div>
-    <div class="c2"><label>Entrada</label><input type="time" name="hora_entrada" value="${esc(hora(base.hora_entrada))}"></div>
-    <div class="c2"><label>Saída</label><input type="time" name="hora_saida" value="${esc(hora(base.hora_saida))}"></div>
+    <div class="c6"><label class="req">Série / ano</label><input name="serie" value="${esc(base.serie)}"></div>
+    <div class="c3"><label>Entrada</label><input type="time" name="hora_entrada" value="${esc(hora(base.hora_entrada))}"></div>
+    <div class="c3"><label>Saída</label><input type="time" name="hora_saida" value="${esc(hora(base.hora_saida))}"></div>
     <div id="vagaMsg"></div></div>`;
+  // o seletor de período é um grupo de opções; o valor lido é o marcado
+  Object.defineProperty($("#secCurso"), "_per", { get: () => $('#secCurso [name="periodo"]:checked')?.value || "" });
+  $$('#secCurso [name="periodo"]').forEach((r) => (r.onchange = () => { montarOpcoes(); $("#mTurma").onchange(); }));
   $("#mEscola").onchange = carregarTurmas; $("#mAno").onchange = carregarTurmas;
   $("#mTurma").onchange = () => {
-    const t = turmas.find((x) => x.id === $("#mTurma").value); avisoVaga(); if (!t) return;
+    const ts = turmasEscolhidas(); avisoVaga(); if (!ts.length) return;
     const c = $("#secCurso");
-    $('[name="serie"]', c).value = t.serie; $('[name="periodo"]', c).value = t.periodo;
-    $('[name="hora_entrada"]', c).value = hora(t.hora_entrada); $('[name="hora_saida"]', c).value = hora(t.hora_saida);
+    $('[name="serie"]', c).value = ts[0].serie;
+    $('[name="hora_entrada"]', c).value = hora(ts[0].hora_entrada); $('[name="hora_saida"]', c).value = hora(ts[ts.length - 1].hora_saida);
+    const t = ts[0];
     if (t.mensalidade_padrao && (!editando || !num($('[name="valor_mensalidade"]').value))) { $('[name="valor_mensalidade"]').value = numIn(t.mensalidade_padrao); prever(); }
   };
 
@@ -174,11 +202,12 @@ rota("matricula", async (main, _, p) => {
     salvarRascunhoResp();
     for (const [i, n] of novosResp.entries()) { if (!n.dados.nome || !n.dados.parentesco || !n.dados.telefone) { toast(`Complete nome, parentesco e telefone do novo responsável ${i + 1}.`, true); return; } if (!validaCPFs(n.dados, "do responsável " + (i + 1))) return; }
     if (!resps.length && !novosResp.length) return toast("Cadastre pelo menos um responsável.", true);
-    if (!exigir($("#secCurso"), ["serie", "periodo"]) || !exigir($("#secFin"), ["resp_financeiro_id", "primeiro_vencimento"])) return;
+    if (!$("#secCurso")._per) return toast("Escolha o período: Manhã, Tarde ou Integral.", true);
+    if (!exigir($("#secCurso"), ["serie"]) || !exigir($("#secFin"), ["resp_financeiro_id", "primeiro_vencimento"])) return;
     const curso = lerForm($("#secCurso")), fin = lerForm($("#secFin")), ori = lerForm($("#secOrigem")), sit = lerForm($("#secSit"));
     curso.escola_id = $("#mEscola").value; curso.ano_letivo = Number(curso.ano_letivo);
-    const t = turmas.find((x) => x.id === curso.turma_id);
-    if (t && t.vagas + (t.id === editando?.turma_id ? 1 : 0) <= 0 && !(await confirmar("A turma está lotada. Matricular mesmo assim?", { ok: "Matricular" }))) return;
+    const lotadas = turmasEscolhidas().filter((t) => livreDe(t) <= 0);
+    if (lotadas.length && !(await confirmar(`${lotadas.map((t) => esc(t.nome)).join(" e ")} ${lotadas.length > 1 ? "estão lotadas" : "está lotada"}. Matricular mesmo assim?`, { ok: "Matricular" }))) return;
     const rfSel = fin.resp_financeiro_id;
     if (String(rfSel).startsWith("novo:") ? !novosResp[Number(rfSel.slice(5))]?.dados.cpf : !resps.find((r) => r.id === rfSel)?.cpf) {
       if (!(await confirmar("O responsável financeiro está sem CPF. O contrato poderá ser assinado sem conferência de CPF. Continuar?"))) return;
@@ -342,14 +371,14 @@ rota("matriculas", async (main, _, p) => {
   const kpi = (ic, cor, v, t) => kpiCard({ ic, cor, valor: v, rotulo: t });
   const porEscola = S.escolas.filter((e) => !S.escola || e.id === S.escola).map((e) => {
     const m = ativos.filter((x) => x.escola_id === e.id), tt = turmas.filter((t) => t.escola_id === e.id), c = tt.reduce((s, t) => s + t.capacidade, 0);
-    return `<tr><td><b>${esc(e.nome)}</b></td><td class="num">${m.length}</td><td class="num">${m.filter((x) => x.tipo === "nova").length}</td><td class="num">${m.filter((x) => x.tipo === "rematricula").length}</td><td class="num">${c}</td><td class="num">${c - m.filter((x) => x.turma_id).length}</td></tr>`;
+    return `<tr><td><b>${esc(e.nome)}</b></td><td class="num">${m.length}</td><td class="num">${m.filter((x) => x.tipo === "nova").length}</td><td class="num">${m.filter((x) => x.tipo === "rematricula").length}</td><td class="num">${c}</td><td class="num">${tt.reduce((s2, t) => s2 + Math.max(0, t.vagas), 0)}</td></tr>`;
   }).join("");
   const porStatus = Object.entries(STATUS_MAT).map(([k, v]) => `<tr><td>${tag(STATUS_MAT, k)}</td><td class="num">${cont((m) => m.status === k)}</td></tr>`).join("");
   $("#vBox").innerHTML = `<div class="kpis">
       ${kpi("users", "blue", ativos.length, "Matriculados")}${kpi("user-plus", "green", ativos.filter((m) => m.tipo === "nova").length, "Novas matrículas")}
       ${kpi("refresh-cw", "navy", ativos.filter((m) => m.tipo === "rematricula").length, "Rematrículas")}${kpi("clock", "amber", cont((m) => pend.includes(m.status)), "Pendências")}
       ${kpi("x-circle", "red", cont((m) => m.status === "cancelada"), "Cancelamentos")}${kpi("arrow-right-left", "red", cont((m) => m.status === "transferida"), "Transferências")}
-      ${kpi("armchair", "green", cap - ativos.filter((m) => m.turma_id).length, "Vagas restantes")}${kpi("alert-triangle", lot ? "red" : "green", lot, "Turmas lotadas")}
+      ${kpi("armchair", "green", turmas.reduce((s2, t) => s2 + Math.max(0, t.vagas), 0), "Vagas restantes")}${kpi("alert-triangle", lot ? "red" : "green", lot, "Turmas lotadas")}
     </div>
     <div class="two" style="margin-bottom:16px">
       <div class="card"><h3>Por escola</h3><p class="sub">Matrículas ativas no ano ${ano}</p><div class="scroll" style="box-shadow:none"><table><thead><tr><th>Escola</th><th class="num">Total</th><th class="num">Novas</th><th class="num">Remat.</th><th class="num">Capac.</th><th class="num">Vagas</th></tr></thead><tbody>${porEscola}</tbody></table></div></div>
