@@ -1,0 +1,2 @@
+-- Migração 11 aplicada no Supabase: caixa_lancamentos, caixa_abertura, caixa_historico (acesso exclusivo via app_prestadores),
+-- gatilhos tg_caixa_mensalidade (parcelas -> entradas) e tg_caixa_prestador (prest_parcelas -> saídas), sem duplicidade (origem, origem_id).

@@ -58,3 +58,8 @@ Aba visível e acessível somente para quem estiver na tabela `acesso_prestadore
 A regra é aplicada no banco (RLS), não só na tela: outros usuários, inclusive da direção, não veem
 os dados por link, consulta, relatório, backup ou exportação. Esses dados não entram no registro de
 alterações geral. Para dar ou tirar o acesso de alguém é preciso alterar a tabela direto no Supabase.
+
+## Livro Caixa (acesso exclusivo, mesma lista dos prestadores)
+Entradas de mensalidades recebidas e saídas de pagamentos a prestadores são lançadas pelo próprio banco
+(gatilhos), na data efetiva do pagamento, uma única vez por parcela. Estornos na origem cancelam o lançamento.
+Lançamentos manuais podem ser editados e cancelados; todo lançamento tem histórico próprio.
