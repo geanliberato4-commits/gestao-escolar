@@ -246,7 +246,7 @@ function folha(escola, corpo, rodape = "") {
     <small>${esc([escola?.telefone, escola?.email, escola?.cnpj && "CNPJ " + escola.cnpj].filter(Boolean).join(" · "))}</small></div></div>${corpo}${rodape ? `<div class="rodape">${rodape}</div>` : ""}</div>`;
 }
 const DOC_PAGINA = (html, titulo, auto) => `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(titulo)}</title>
-<link rel="stylesheet" href="${CSS_DOC()}"><style>body{background:#fff;margin:0;padding:16px}.folha{box-shadow:none;max-width:800px;margin:0 auto}@media print{body{padding:0}.folha{padding:0;max-width:none}}@page{margin:16mm 14mm}</style></head>
+<link rel="stylesheet" href="${CSS_DOC()}"><style>body{background:#fff;margin:0;padding:16px}.folha{box-shadow:none;max-width:800px;margin:0 auto}@media print{body{padding:0}.folha{padding:0;max-width:none}.folha p{orphans:3;widows:3}.folha tr,.folha .cert,.folha .assinaturas{break-inside:avoid}.folha h3{break-after:avoid}}@page{margin:16mm 14mm}</style></head>
 <body>${html}${auto ? `<script>window.addEventListener("load",function(){setTimeout(function(){window.focus();window.print();},300);});<\/script>` : ""}</body></html>`;
 /* imprimir / salvar como PDF pelo próprio navegador: abre o documento numa aba e chama a impressão
    (funciona também no celular, onde a impressão de quadros escondidos falha) */
@@ -259,23 +259,76 @@ function imprimir(html, titulo = "Documento") {
   f.srcdoc = DOC_PAGINA(html, titulo, false);
 }
 /* gera o PDF. O elemento entregue ao gerador NÃO pode estar posicionado fora da tela (isso deixava o PDF em branco);
-   a escala é limitada para não estourar o tamanho máximo de imagem do celular (iPhone). */
+   a escala é limitada para não estourar o tamanho máximo de imagem do celular (iPhone).
+   O gerador "fatia" uma imagem em páginas A4; para nenhuma linha ser cortada ao meio na virada da página,
+   paginarSemCorte() mede cada linha de texto e empurra para a página seguinte a que ficaria dividida. */
+const PDF_MARGEM = [12, 10, 14, 10]; // mm: topo, esquerda, base, direita
+const PDF_LARG = 718;                // px = (210 - 10 - 10) mm, como o gerador calcula
+const PDF_PAG = PDF_LARG * (297 - PDF_MARGEM[0] - PDF_MARGEM[2]) / (210 - PDF_MARGEM[1] - PDF_MARGEM[3]); // altura útil em px
+
+function paginarSemCorte(el) {
+  const INTEIROS = "tr,img,h1,h2,h3,h4,.assinaturas,.cert,.cab,.rodape,hr,li";
+  const base = () => el.getBoundingClientRect().top;
+  // unidades que não podem ser cortadas: cada linha de texto e os blocos inteiros acima
+  const unidades = () => {
+    const t0 = base(), us = [];
+    el.querySelectorAll(INTEIROS).forEach((x) => {
+      if (x.parentElement.closest(INTEIROS)) return;
+      const r = x.getBoundingClientRect(); if (r.height) us.push({ top: r.top - t0, bottom: r.bottom - t0, el: x });
+    });
+    const tw = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    const rg = document.createRange();
+    for (let n; (n = tw.nextNode());) {
+      if (!n.data.trim() || n.parentElement.closest(INTEIROS)) continue;
+      let linhaTop = null, re = /\S+/g, m;
+      while ((m = re.exec(n.data))) {
+        rg.setStart(n, m.index); rg.setEnd(n, m.index + m[0].length);
+        const r = rg.getClientRects()[0]; if (!r) continue;
+        if (linhaTop === null || r.top - t0 > linhaTop + 2) { linhaTop = r.top - t0; us.push({ top: linhaTop, bottom: r.bottom - t0, node: n, off: m.index }); }
+        else { const u = us[us.length - 1]; u.bottom = Math.max(u.bottom, r.bottom - t0); }
+      }
+    }
+    return us.sort((a, b) => a.top - b.top);
+  };
+  for (let fim = PDF_PAG, guarda = 0; fim < el.scrollHeight && guarda < 60; guarda++) {
+    const u = unidades().find((x) => x.top < fim - 1 && x.bottom > fim - 2 && x.bottom - x.top < PDF_PAG * 0.9);
+    if (u) {
+      const h = Math.ceil(fim - u.top) + 2;
+      if (u.node) {
+        // linha no meio de um parágrafo: quebra o texto naquele ponto e insere um espaço até a próxima página
+        const resto = u.off > 0 ? u.node.splitText(u.off) : u.node;
+        const sp = document.createElement("span"); sp.className = "pg-salto"; sp.style.cssText = `display:block;height:${h}px`;
+        resto.parentNode.insertBefore(sp, resto);
+      } else if (u.el.tagName === "TR") {
+        const tr = document.createElement("tr"); tr.className = "pg-salto";
+        tr.innerHTML = `<td colspan="99" style="height:${h}px;padding:0;border:0;border-bottom:1px solid #999;background:#fff"></td>`;
+        u.el.parentNode.insertBefore(tr, u.el);
+      } else {
+        const sp = document.createElement("div"); sp.className = "pg-salto"; sp.style.height = h + "px";
+        u.el.parentNode.insertBefore(sp, u.el);
+      }
+    }
+    fim += PDF_PAG;
+  }
+}
+
 async function pdfBlob(html) {
   const box = document.createElement("div");
-  box.style.cssText = "position:absolute;left:0;top:0;width:718px;height:0;overflow:hidden;opacity:0;pointer-events:none";
+  box.style.cssText = `position:absolute;left:0;top:0;width:${PDF_LARG}px;height:0;overflow:hidden;opacity:0;pointer-events:none`;
   box.innerHTML = html; document.body.appendChild(box);
   const el = box.firstElementChild || box;
-  el.style.boxShadow = "none"; el.style.maxWidth = "none"; el.style.margin = "0"; el.style.padding = "0"; el.classList.add("pdf");
+  el.style.boxShadow = "none"; el.style.maxWidth = "none"; el.style.margin = "0"; el.style.padding = "0"; el.style.width = PDF_LARG + "px"; el.classList.add("pdf");
   try {
     await Promise.all([...el.querySelectorAll("img")].map((i) => (i.complete ? null : new Promise((r) => { i.onload = i.onerror = r; }))));
     if (document.fonts?.ready) await document.fonts.ready;
+    try { paginarSemCorte(el); } catch (e) { console.warn("paginação", e); }
     const alt = Math.max(el.scrollHeight, 1123);
-    const escala = Math.max(1, Math.min(2, Math.sqrt(15e6 / (718 * alt))));
+    const escala = Math.max(1, Math.min(2, Math.sqrt(15e6 / (PDF_LARG * alt))));
     return await html2pdf().set({
-      margin: [12, 10, 14, 10], image: { type: "jpeg", quality: 0.95 },
+      margin: PDF_MARGEM, image: { type: "jpeg", quality: 0.95 },
       html2canvas: { scale: escala, useCORS: true, backgroundColor: "#ffffff", scrollX: 0, scrollY: 0 },
       jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
-      pagebreak: { mode: ["css", "legacy"], avoid: ["tr", ".cert", ".assinaturas", "h3"] },
+      pagebreak: { mode: ["legacy"] }, // as quebras já foram calculadas acima
     }).from(el).outputPdf("blob");
   } finally { box.remove(); }
 }
