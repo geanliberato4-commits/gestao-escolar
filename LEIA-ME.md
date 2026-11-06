@@ -52,3 +52,9 @@ mantendo o resto do fluxo.
 3. Ajustar as **turmas de exemplo** (2026 e 2027) em Turmas.
 4. Supabase › Authentication › Sign In / Providers: desativar “Allow new users to sign up”; ativar proteção contra senhas vazadas.
 5. Criar os usuários reais em Configurações › Usuários e **desativar os dois usuários de teste**.
+
+## Pagamentos de Prestadores de Serviços (acesso exclusivo)
+Aba visível e acessível somente para quem estiver na tabela `acesso_prestadores` (hoje: Jussara).
+A regra é aplicada no banco (RLS), não só na tela: outros usuários, inclusive da direção, não veem
+os dados por link, consulta, relatório, backup ou exportação. Esses dados não entram no registro de
+alterações geral. Para dar ou tirar o acesso de alguém é preciso alterar a tabela direto no Supabase.

@@ -398,3 +398,20 @@ a.kpi:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(20,25,60,.10)
 .folha .assinaturas+.assinaturas{margin-top:40px}
 @media screen{.folha .vazio{background:#fff6d1}.doc-prev .folha .quebra{border-top:2px dashed #c9cfdb;margin:28px -54px;height:0}}
 @media print{.folha .vazio{background:none}}
+
+/* =================== Pagamentos de prestadores =================== */
+.nav button .n{margin-left:auto;background:#E8191F;color:#fff;font-size:.72rem;font-weight:700;border-radius:99px;padding:1px 8px;min-width:20px;text-align:center}
+.shell.collapsed .nav button .n{position:absolute;margin:0;transform:translate(14px,-12px);padding:0 5px}
+.cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
+.cal-h{font-size:.74rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);text-align:center;padding:6px 0}
+.cal-d{background:var(--card);border:1px solid var(--line);border-radius:12px;min-height:118px;padding:8px;display:flex;flex-direction:column;gap:5px;min-width:0}
+.cal-d.vazio{background:transparent;border-style:dashed;opacity:.5}
+.cal-d.hoje{border:2px solid var(--royal);box-shadow:0 0 0 3px var(--royal-soft)}
+.cal-n{font-size:.8rem;font-weight:700;color:var(--mut)}
+.cal-d.hoje .cal-n{color:var(--royal)}
+.cal-it{border:0;border-left:4px solid var(--royal);background:var(--royal-soft);border-radius:6px;padding:4px 6px;text-align:left;cursor:pointer;display:flex;flex-direction:column;min-width:0;font:inherit}
+.cal-it b{font-size:.76rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink)}
+.cal-it span{font-size:.7rem;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cal-it.pago{border-left-color:var(--ok);background:var(--ok-soft)}
+.cal-it.atrasado{border-left-color:var(--err);background:var(--err-soft)}
+@media(max-width:760px){.cal{grid-template-columns:1fr}.cal-h,.cal-d.vazio{display:none}.cal-d{min-height:0}.cal-d:not(:has(.cal-it)){display:none}}

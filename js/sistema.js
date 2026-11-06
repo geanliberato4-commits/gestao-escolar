@@ -24,7 +24,7 @@ rota("painel", async (main) => {
   const venc = parc.filter((p) => p.situacao === "atrasado").reduce((s, p) => s + Number(p.em_aberto), 0);
   const recentes = [...mats].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 8);
   main.innerHTML = pageHead("layout-dashboard", `Olá, ${S.perfil.nome.split(" ")[0]}!`, `${S.escola ? escolaNome(S.escola) : "Visão conjunta das escolas"} · ${dataExtenso()}`) +
-    `<div class="kpis">
+    `${await alertasPrestadores().catch(() => "")}<div class="kpis">
       ${k("users", "blue", at(ano).length, `Matriculados ${ano}`, `#/matriculas?ano=${ano}`)}
       ${k("calendar-plus", "navy", at(ano + 1).length, `Matrículas ${ano + 1}`, `#/matriculas?ano=${ano + 1}`)}
       ${k("clock", "amber", pend.length, "Matrículas pendentes", `#/alunos?ano=${ano}`)}

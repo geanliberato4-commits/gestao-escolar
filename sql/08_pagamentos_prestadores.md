@@ -1,0 +1,2 @@
+-- Migração 08 aplicada no Supabase: tabelas prest_contratos, prest_parcelas, view v_prest_parcelas,
+-- tabela acesso_prestadores (lista de quem acessa), função app_prestadores(), bucket privado 'prestadores'.

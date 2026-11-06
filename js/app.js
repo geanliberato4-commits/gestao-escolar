@@ -45,6 +45,7 @@ async function entrarNoSistema(user) {
   const [esc_, mods] = await Promise.all([sb.from("escolas").select("*").order("nome"), sb.from("papel_modulos").select("*").eq("papel", S.perfil.papel)]);
   S.escolas = esc_.data || [];
   S.modulos = new Set((mods.data || []).map((m) => m.modulo));
+  S.prestadores = (await sb.rpc("app_prestadores")).data === true;
   let salvo = ""; try { salvo = localStorage.getItem("ge.escola") || ""; } catch (_) {}
   S.escola = S.escolas.some((e) => e.id === salvo) ? salvo : (S.escolas.length === 1 ? S.escolas[0].id : "");
 
@@ -58,6 +59,8 @@ async function entrarNoSistema(user) {
   // esconde o que o perfil não usa
   $$(".nav button[data-m]").forEach((b) => b.classList.toggle("hidden", !pode(b.dataset.m)));
   $$(".nav button[data-d]").forEach((b) => b.classList.toggle("hidden", !(ehDirecao() || S.perfil.admin)));
+  $$('.nav button[data-x="prest"]').forEach((b) => b.classList.toggle("hidden", !S.prestadores));
+  if (S.prestadores) alertasPrestadores().catch(() => {});
   try { if (localStorage.getItem("ge.menu") === "c") $(".shell").classList.add("collapsed"); } catch (_) {}
   render();
 }
@@ -89,7 +92,7 @@ $("#minhaSenha").onclick = () => modal({
     toast("Senha alterada.");
   } }],
 });
-$("#sair").onclick = async () => { await sb.auth.signOut(); S.perfil = null; document.body.dataset.tema = ""; location.hash = ""; mostrarLogin(); };
+$("#sair").onclick = async () => { await sb.auth.signOut(); S.perfil = null; S.prestadores = false; document.body.dataset.tema = ""; location.hash = ""; mostrarLogin(); };
 $("#recolher").onclick = () => { const c = $(".shell").classList.toggle("collapsed"); try { localStorage.setItem("ge.menu", c ? "c" : ""); } catch (_) {} };
 $("#burger").onclick = () => $(".shell").classList.add("open");
 $("#scrim").onclick = () => $(".shell").classList.remove("open");
