@@ -87,6 +87,9 @@ $("#escolaSel").addEventListener("change", (e) => { S.escola = e.target.value; t
 function aplicarTema() {
   const e = S.escolas.find((x) => x.id === S.escola);
   document.body.dataset.tema = e ? temaDe(e) : "";
+  // ícone da aba: logo da escola escolhida (ou as duas na visão conjunta)
+  const fav = $("#favicon"), t = e ? temaDe(e) : "";
+  if (fav) fav.href = t === "mef" ? "img/fav-mef-64.png" : t ? "img/fav-estacao-64.png" : "img/fav-64.png";
   const box = $("#sideLogos");
   const lista = e ? [e] : S.escolas.filter((x) => x.logo);
   box.className = "brand-logos" + (lista.length > 1 ? " duas" : "");
@@ -108,7 +111,7 @@ $("#minhaSenha").onclick = () => modal({
     toast("Senha alterada.");
   } }],
 });
-$("#sair").onclick = async () => { await sb.auth.signOut(); S.perfil = null; S.prestadores = false; document.body.dataset.tema = ""; location.hash = ""; mostrarLogin(); };
+$("#sair").onclick = async () => { await sb.auth.signOut(); S.perfil = null; S.prestadores = false; document.body.dataset.tema = ""; $("#favicon").href = "img/fav-64.png"; location.hash = ""; mostrarLogin(); };
 $("#recolher").onclick = () => { const c = $(".shell").classList.toggle("collapsed"); try { localStorage.setItem("ge.menu", c ? "c" : ""); } catch (_) {} };
 $("#burger").onclick = () => $(".shell").classList.add("open");
 $("#scrim").onclick = () => $(".shell").classList.remove("open");
