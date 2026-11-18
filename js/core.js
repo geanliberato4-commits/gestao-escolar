@@ -371,7 +371,7 @@ const PLACEHOLDERS = [
   "responsaveis.lista", "responsaveis.tabela",
   "financeiro.valor_curso", "financeiro.anuidade", "financeiro.mensalidade", "financeiro.desconto", "financeiro.valor_parcela", "financeiro.primeira_parcela", "financeiro.primeira_parcela_bruta", "financeiro.primeira_vencimento",
   "financeiro.parcelas", "financeiro.parcelas_extenso", "financeiro.dia_vencimento", "financeiro.dia_extenso", "financeiro.inicio_demais", "financeiro.meses", "financeiro.primeiro_vencimento",
-  "financeiro.condicoes", "financeiro.condicao_primeira", "financeiro.cond_valor_curso", "financeiro.cond_primeira", "financeiro.cond_demais", "financeiro.material", "financeiro.material_forma", "financeiro.tabela_parcelas", "financeiro.total_pago",
+  "financeiro.condicoes", "financeiro.condicao_primeira", "financeiro.convenio", "financeiro.convenio_texto", "financeiro.cond_valor_curso", "financeiro.cond_primeira", "financeiro.cond_demais", "financeiro.material", "financeiro.material_forma", "financeiro.tabela_parcelas", "financeiro.total_pago",
   "data.hoje", "data.extenso", "usuario.nome",
   "campo.frequencia", "campo.periodo_referencia", "campo.serie_destino", "campo.texto",
 ];
@@ -417,6 +417,10 @@ async function contextoMatricula(matriculaId, campos = {}) {
   const demais = sep || cond ? parc.filter((p) => p.numero > 1) : parc;
   const desc = demais.length ? Number(demais[0].desconto) : descCalc;
   const valorDemais = demais.length ? Number(demais[0].valor) : Number(m.valor_mensalidade) - desc;
+  // convênio servidor público (Prefeitura)
+  const convPct = Number(e.convenio_servidor_pct ?? 10), mens = Number(m.valor_mensalidade);
+  const convDesc = m.convenio_servidor ? Math.round(mens * convPct) / 100 : 0;
+  const convTexto = m.convenio_servidor ? `Por ${({ pai: "o pai", mae: "a mãe", ambos: "o pai e a mãe" })[m.convenio_servidor]} do(a) aluno(a) ser servidor(a) público(a), conforme convênio firmado com a Prefeitura, fica concedido desconto de ${String(convPct).replace(".", ",")}% sobre as mensalidades: valor original ${money(mens)}, desconto de ${String(convPct).replace(".", ",")}% (${money(convDesc)}), valor final ${money(mens - convDesc)}${Math.abs(mens - convDesc - valorDemais) > 0.01 ? ` (valor da mensalidade com todos os descontos: ${money(valorDemais)})` : ""}.` : "";
   const primeira = p1s.length ? p1s.reduce((s, p) => s + Number(p.valor), 0) : cond?.valor_final != null ? Number(cond.valor_final) : sep ? Number(m.valor_primeira_parcela) : valorDemais;
   const primeiraBruta = cond ? Number(cond.valor_original) : sep ? Number(m.valor_primeira_parcela) : Number(m.valor_mensalidade);
   const valorCurso = primeiraBruta + Number(m.valor_mensalidade) * Math.max(0, n - 1);
@@ -429,7 +433,7 @@ async function contextoMatricula(matriculaId, campos = {}) {
   const listaE = (xs) => (xs.length > 1 ? xs.slice(0, -1).join(", ") + " e " + xs[xs.length - 1] : xs[0] || "");
   const vencP1Txt = partesP1.length > 1 ? `${listaE(partesP1.map((p) => dataBR(p.vencimento)))}, em ${partesP1.length} pagamentos ${partesP1.every((p) => Number(p.valor) === Number(partesP1[0].valor)) ? "de " + money(partesP1[0].valor) : "(" + listaE(partesP1.map((p) => money(p.valor))) + ")"}` : dataBR(vencP1);
   const inicioDemais = demais[0]?.vencimento || m.primeiro_vencimento;
-  const temCond = desc > 0 || !!m.condicoes_especiais || !!cond;
+  const temCond = desc > 0 || !!m.condicoes_especiais || !!cond || !!m.convenio_servidor;
   const filiacao = [a.mae_nome, a.pai_nome].filter(Boolean).join(" e ");
   const tels = (...xs) => [...new Set(xs.filter(Boolean))].join(" / ");
   const ctx = {
@@ -456,7 +460,9 @@ async function contextoMatricula(matriculaId, campos = {}) {
     "financeiro.dia_vencimento": m.dia_vencimento || (inicioDemais ? Number(inicioDemais.slice(8)) : ""), "financeiro.dia_extenso": extenso(m.dia_vencimento || (inicioDemais ? Number(inicioDemais.slice(8)) : "")),
     "financeiro.inicio_demais": mesAno(inicioDemais), "financeiro.primeiro_vencimento": dataBR(m.primeiro_vencimento || venc[0]),
     "financeiro.meses": venc.length ? (venc[0].slice(0, 7) === venc[venc.length - 1].slice(0, 7) ? mesAno(venc[0]) : `${mesAno(venc[0])} a ${mesAno(venc[venc.length - 1])}`) : "",
-    "financeiro.condicoes": [cond && textoCond(cond), m.desconto_motivo && "Desconto: " + m.desconto_motivo, m.condicoes_especiais].filter(Boolean).join(". "),
+    "financeiro.convenio_texto": convTexto,
+    "financeiro.convenio": m.convenio_servidor ? `Servidor público (${({ pai: "pai", mae: "mãe", ambos: "pai e mãe" })[m.convenio_servidor]}) — ${String(convPct).replace(".", ",")}%` : "Não",
+    "financeiro.condicoes": [m.convenio_servidor && `Convênio servidor público: desconto de ${String(convPct).replace(".", ",")}% (${money(convDesc)}) sobre a mensalidade de ${money(mens)}, valor final ${money(mens - convDesc)}`, cond && textoCond(cond), m.desconto_motivo && "Desconto: " + m.desconto_motivo, m.condicoes_especiais].filter(Boolean).join(". "),
     "financeiro.condicao_primeira": cond ? textoCond(cond) : "",
     "financeiro.cond_valor_curso": temCond && (desc > 0 || cond) ? money(anuidade) : "", "financeiro.cond_primeira": temCond && (desc > 0 || cond) ? money(primeira) : "", "financeiro.cond_demais": temCond && (desc > 0 || cond) ? money(valorDemais) : "",
     "financeiro.material": m.valor_material ? money(m.valor_material) : "", "financeiro.material_forma": m.material_forma,

@@ -153,6 +153,13 @@ rota("matricula", async (main, _, p) => {
       <div class="c3"><label class="req">1º vencimento das mensalidades</label><input type="date" name="primeiro_vencimento" value="${esc(base.primeiro_vencimento || `${base.ano_letivo}-01-${String(base.dia_vencimento || 10).padStart(2, "0")}`)}"></div>
       <div class="c3"><label>Desconto</label><select name="desconto_tipo">${opts([["nenhum", "Sem desconto"], ["percentual", "Percentual (%)"], ["valor", "Valor fixo (R$)"]], base.desconto_tipo)}</select></div>
       <div class="c3"><label>Valor do desconto</label><input name="desconto_valor" data-mask="money" inputmode="decimal" value="${numIn(base.desconto_valor)}"></div>
+      <div id="convBox"><label>Algum dos pais da criança é servidor público? <span class="muted small">(convênio com a Prefeitura — ${String(e.convenio_servidor_pct ?? 10).replace(".", ",")}% de desconto nas mensalidades)</span></label>
+        <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center">
+          <button type="button" class="sn ${base.convenio_servidor ? "" : "on"}" data-conv="nao">NÃO</button>
+          <button type="button" class="sn ${base.convenio_servidor ? "on" : ""}" data-conv="sim">SIM</button>
+          <select data-convq style="width:auto${base.convenio_servidor ? "" : ";display:none"}">${opts([["mae", "A mãe é servidora"], ["pai", "O pai é servidor"], ["ambos", "Pai e mãe são servidores"]], base.convenio_servidor || "mae")}</select>
+          <input type="hidden" name="convenio_servidor" value="${esc(base.convenio_servidor || "")}">
+        </div><div class="hint">Vale mesmo que o servidor não seja o responsável financeiro.</div></div>
       <div class="c6"><label>Motivo do desconto</label><input name="desconto_motivo" value="${esc(base.desconto_motivo)}" placeholder="Ex.: bolsa parcial, convênio"></div>
       <div class="c6"><label>&nbsp;</label><label class="chk"><input type="checkbox" name="aplica_desconto_irmao" ${base.aplica_desconto_irmao ? "checked" : ""}> Aplicar desconto de irmão
         <span class="muted small">(${e.desconto_irmao_tipo === "valor" ? money(e.desconto_irmao_valor) : (e.desconto_irmao_valor || 0) + "%"}${e.descontos_acumulam ? ", acumula" : ", não acumula"})</span></label></div>
@@ -160,14 +167,26 @@ rota("matricula", async (main, _, p) => {
       <div class="c6"><label>Forma de pagamento do material</label><input name="material_forma" value="${esc(base.material_forma ?? "Editora Netbil")}"></div>
       <div><label>Observação de condição especial (texto livre)</label><textarea name="condicoes_especiais" placeholder="Aparece no requerimento e no contrato junto da condição da 1ª parcela">${esc(base.condicoes_especiais)}</textarea></div>
       <div id="prev" class="hint"></div></div>`;
-    $$("#secFin input,#secFin select").forEach((x) => x.addEventListener("input", prever)); prever();
+    $$("#secFin input,#secFin select").forEach((x) => x.addEventListener("input", prever));
+    const convIn = $('[name="convenio_servidor"]'), convQ = $("[data-convq]");
+    const convSet = (sim) => { convIn.value = sim ? convQ.value : ""; convQ.style.display = sim ? "" : "none"; $$("[data-conv]").forEach((b) => b.classList.toggle("on", (b.dataset.conv === "sim") === sim)); prever(); };
+    $$("[data-conv]").forEach((b) => (b.onclick = () => convSet(b.dataset.conv === "sim")));
+    convQ.onchange = () => convSet(true);
+    prever();
   };
+  // desconto previsto: contrato + convênio servidor (o de irmão é conferido na geração)
+  function descPrevisto(f) {
+    const v = f.valor_mensalidade || 0, e = S.escolas.find((x) => x.id === ($("#mEscola")?.value || base.escola_id));
+    const d1 = f.desconto_tipo === "percentual" ? v * (f.desconto_valor || 0) / 100 : f.desconto_tipo === "valor" ? f.desconto_valor || 0 : 0;
+    const d3 = f.convenio_servidor ? Math.round(v * Number(e?.convenio_servidor_pct ?? 10)) / 100 : 0;
+    return { d1, d3, d: Math.min(v, e?.descontos_acumulam ? d1 + d3 : Math.max(d1, d3)), pct: Number(e?.convenio_servidor_pct ?? 10) };
+  }
   function prever() {
     const f = lerForm($("#secFin")); const v = f.valor_mensalidade || 0;
-    const d = f.desconto_tipo === "percentual" ? v * (f.desconto_valor || 0) / 100 : f.desconto_tipo === "valor" ? f.desconto_valor || 0 : 0;
+    const { d, d3, pct } = descPrevisto(f);
     const n = f.num_parcelas || 0, p1 = f.valor_primeira_parcela > 0 ? f.valor_primeira_parcela : null;
     condUI?.atualizar();
-    $("#prev").innerHTML = v ? (p1 ? `1ª parcela <b>${money(p1)}</b> + ${n - 1} × <b>${money(v - d)}</b> = <b>${money(p1 + (v - d) * Math.max(0, n - 1))}</b>` : `Parcela estimada: <b>${money(v - d)}</b> × ${n} = <b>${money((v - d) * n)}</b>`) + `${f.aplica_desconto_irmao ? " (o desconto de irmão é aplicado na geração se houver irmão matriculado no mesmo ano)" : ""}` : "";
+    $("#prev").innerHTML = (v && d3 ? `<div class="msg ok" style="margin:6px 0"><b>Convênio servidor público:</b> mensalidade original <b>${money(v)}</b> · desconto de ${String(pct).replace(".", ",")}% <b>− ${money(d3)}</b> · valor final <b>${money(v - d3)}</b>${Math.abs(d - d3) > 0.005 ? ` <span class="small">(com os demais descontos: ${money(v - d)})</span>` : ""}</div>` : "") + (v ? (p1 ? `1ª parcela <b>${money(p1)}</b> + ${n - 1} × <b>${money(v - d)}</b> = <b>${money(p1 + (v - d) * Math.max(0, n - 1))}</b>` : `Parcela estimada: <b>${money(v - d)}</b> × ${n} = <b>${money((v - d) * n)}</b>`) + `${f.aplica_desconto_irmao ? " (o desconto de irmão é aplicado na geração se houver irmão matriculado no mesmo ano)" : ""}` : "");
   }
 
   /* ---- 5. origem / indicação ---- */
@@ -200,7 +219,7 @@ rota("matricula", async (main, _, p) => {
   /* ---- 4b. condições especiais da 1ª parcela ---- */
   const fin1 = () => {
     const f = lerForm($("#secFin")), v = f.valor_mensalidade || 0, p1 = f.valor_primeira_parcela > 0 ? f.valor_primeira_parcela : 0;
-    const d = f.desconto_tipo === "percentual" ? v * (f.desconto_valor || 0) / 100 : f.desconto_tipo === "valor" ? f.desconto_valor || 0 : 0;
+    const { d } = descPrevisto(f);
     return { valor: p1 || Math.max(0, v - d), venc: p1 ? f.vencimento_primeira || f.primeiro_vencimento || hojeISO() : f.primeiro_vencimento };
   };
   condUI = painelCondPrimeira($("#secCond"), { cond: base.cond_primeira, podeCond: !(rema || base.tipo === "rematricula") || ehDirecao() || !!S.perfil.admin,
@@ -258,6 +277,10 @@ rota("matricula", async (main, _, p) => {
         const condMudou = chave(cond) !== chave(editando.cond_primeira);
         if ($("#regerar")?.checked) reg.cond_primeira = cond;
         mat = await q(sb.from("matriculas").update(reg).eq("id", editando.id).select().single());
+        if ((editando.convenio_servidor || null) !== (reg.convenio_servidor || null) && !$("#regerar")?.checked) {
+          const nr = await q(sb.rpc("recalcular_descontos", { p_matricula: mat.id }));
+          toast(`Convênio ${reg.convenio_servidor ? "aplicado" : "retirado"}: ${nr} mensalidade(s) futura(s) sem pagamento recalculada(s).`);
+        }
         if (condMudou && !$("#regerar")?.checked) { await q(sb.rpc("aplicar_condicao_primeira", { p_matricula: mat.id, p_cond: cond })); toast("Condição da 1ª parcela aplicada (demais mensalidades não mudaram)."); }
         if ($("#regerar")?.checked) { const n = await q(sb.rpc("gerar_parcelas", { p_matricula: mat.id, p_regerar: true })); toast(`${n} mensalidade(s) regerada(s).`); }
         if (["cancelada", "transferida"].includes(sit.status) && editando.status !== sit.status) await tratarEncerramento(mat);
