@@ -98,7 +98,7 @@ const nivel = (m) => (ehDirecao() ? "editar" : S.perfil?.permissoes?.[m] || (S.m
 const pode = (m) => nivel(m) === "editar";
 const veMod = (m) => nivel(m) !== "nenhum";
 /* área exigida para abrir cada tela (visualizar) */
-const ROTA_MODULO = { alunos: "cadastro", aluno: "cadastro", matricula: "matricula", rematricula: "matricula", matriculas: "matricula", espera: "espera",
+const ROTA_MODULO = { alunos: "cadastro", notas: "financeiro", aluno: "cadastro", matricula: "matricula", rematricula: "matricula", matriculas: "matricula", espera: "espera",
   contratos: "contratos", documentos: "documentos", declaracoes: "declaracoes", financeiro: "financeiro", relatorios: "relatorios", turmas: "turmas", modelos: "modelos" };
 const escolaNome = (id) => S.escolas.find((e) => e.id === id)?.nome || "";
 const escolasVisiveis = () => S.escolas;

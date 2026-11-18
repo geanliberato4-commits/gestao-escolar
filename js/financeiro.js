@@ -7,6 +7,30 @@
 const numParcTxt = (p) => (p.partes ? `${p.numero} (pag. ${p.parte}/${p.partes})` : String(p.numero));
 const numParc = (p) => (p.partes ? `${p.numero} <span class="tag warn" title="1ª parcela com condição especial">pag. ${p.parte}/${p.partes}</span>` : p.numero);
 
+/* botões SIM/NÃO de boleto e nota fiscal: salvam na hora, sem abrir a parcela */
+function chaveSN(p, tipo, editavel) {
+  const on = tipo === "nf" ? p.nf_emitida : p.boleto_emitido;
+  const dica = tipo === "nf" ? (on ? `NF ${p.nf_numero || ""} emitida em ${dataBR(p.nf_data)}` : "Nota fiscal não emitida") : (on ? `Boleto emitido em ${dataBR(p.boleto_data)} ${p.boleto_situacao || ""}` : "Boleto não emitido");
+  if (!editavel) return `<span class="tag ${on ? "ok" : "off"}" title="${esc(dica)}">${on ? "Sim" : "Não"}</span>`;
+  return `<button type="button" class="sn ${on ? "on" : ""}" data-sn="${tipo}" data-id="${p.id}" title="${esc(dica)} — clique para ${on ? "desmarcar" : "marcar"}" aria-pressed="${!!on}"><span>${on ? "SIM" : "NÃO"}</span></button>`;
+}
+function ligarChavesSN(box, lista) {
+  $$("button[data-sn]", box).forEach((b) => (b.onclick = async (e) => {
+    e.stopPropagation();
+    const p = lista.find((x) => x.id === b.dataset.id); if (!p || b.disabled) return;
+    const nf = b.dataset.sn === "nf", novo = !(nf ? p.nf_emitida : p.boleto_emitido);
+    const upd = nf ? { nf_emitida: novo, nf_data: novo ? p.nf_data || hojeISO() : null } : { boleto_emitido: novo, boleto_data: novo ? p.boleto_data || hojeISO() : null };
+    b.disabled = true;
+    const { error } = await sb.from("parcelas").update(upd).eq("id", p.id);
+    b.disabled = false;
+    if (error) return toast(erroAmigavel(error), true);
+    Object.assign(p, upd);
+    b.outerHTML = chaveSN(p, b.dataset.sn, true);
+    ligarChavesSN(box, lista);
+    toast(`${nf ? "Nota fiscal" : "Boleto"}: ${novo ? "emitido(a)" : "marcado(a) como não emitido(a)"}.`);
+  }));
+}
+
 /* tabela de parcelas reutilizável (ficha do aluno e painel geral) */
 function painelParcelas(box, parc, { porAno = false, selecionavel = false, recarregar, mostrarAluno = false } = {}) {
   const fin = pode("financeiro");
@@ -19,8 +43,8 @@ function painelParcelas(box, parc, { porAno = false, selecionavel = false, recar
     <td class="num money">${money(p.valor)}${Number(p.desconto) ? `<div class="small muted">desc. ${money(p.desconto)}</div>` : ""}</td>
     <td class="num money">${Number(p.valor_pago) ? money(p.valor_pago) : "—"}<div class="small muted">${dataBR(p.data_pagamento)} ${esc(p.forma_pagamento || "")}</div></td>
     <td>${tag(SIT_PARC, p.situacao)}</td>
-    <td>${p.boleto_emitido ? `<span class="tag ok" title="${esc(p.boleto_situacao || "")}">Sim</span>` : '<span class="tag off">Não</span>'}</td>
-    <td>${p.nf_emitida ? `<span class="tag ok" title="${esc(p.nf_numero || "")} ${dataBR(p.nf_data)}">Sim</span>` : '<span class="tag off">Não</span>'}</td>
+    <td>${chaveSN(p, "boleto", fin && p.status !== "cancelada")}</td>
+    <td>${chaveSN(p, "nf", fin && p.status !== "cancelada")}</td>
     <td class="act">${fin && p.status !== "cancelada" && p.situacao !== "pago" ? `<button class="btn sm ok" data-pg="${p.id}"><i data-lucide="banknote"></i>Pagar</button>` : ""}
       ${fin ? `<button class="btn sm sec" data-edp="${p.id}" title="Ajustar"><i data-lucide="pencil"></i></button>` : ""}</td></tr>`;
   const cab = `<tr>${selecionavel && fin ? '<th><input type="checkbox" id="selAll" style="width:auto"></th>' : ""}${mostrarAluno ? "<th>Aluno</th>" : ""}<th>Parcela</th><th>Vencimento</th><th class="num">Valor</th><th class="num">Pago</th><th>Situação</th><th>Boleto</th><th>NF</th><th></th></tr>`;
@@ -34,6 +58,7 @@ function painelParcelas(box, parc, { porAno = false, selecionavel = false, recar
         <div class="scroll" style="margin-top:10px"><table><thead>${cab}</thead><tbody>${ps.sort((a, b) => a.numero - b.numero || (a.parte || 0) - (b.parte || 0)).map(linha).join("")}</tbody></table></div></div>`;
     }).join("");
   } else box.innerHTML = `<div class="scroll"><table><thead>${cab}</thead><tbody>${parc.map(linha).join("")}</tbody></table></div>`;
+  ligarChavesSN(box, parc);
   $$("[data-pg]", box).forEach((b) => (b.onclick = () => registrarPagamento(parc.find((p) => p.id === b.dataset.pg), recarregar)));
   $$("[data-edp]", box).forEach((b) => (b.onclick = () => editarParcela(parc.find((p) => p.id === b.dataset.edp), recarregar)));
   $$("[data-nova]", box).forEach((b) => (b.onclick = () => novaParcela(parc.find((p) => p.matricula_id === b.dataset.nova), recarregar)));

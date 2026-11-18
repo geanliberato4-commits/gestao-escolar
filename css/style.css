@@ -417,3 +417,9 @@ a.kpi:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(20,25,60,.10)
 @media(max-width:760px){.cal{grid-template-columns:1fr}.cal-h,.cal-d.vazio{display:none}.cal-d{min-height:0}.cal-d:not(:has(.cal-it)){display:none}}
 .folha.pdf .vazio{background:none}
 .folha.pdf{font-size:12.5px}
+
+/* chave SIM/NÃO (boleto e nota fiscal na listagem) */
+.sn{display:inline-flex;align-items:center;justify-content:center;min-width:52px;height:26px;padding:0 10px;border-radius:999px;border:1px solid var(--line);background:#fff;color:var(--mut);font-family:inherit;font-size:.72rem;font-weight:600;line-height:1;letter-spacing:.03em;cursor:pointer;transition:background .15s,color .15s,border-color .15s}
+.sn:hover{border-color:var(--mut)}
+.sn.on{background:var(--ok-soft);border-color:var(--ok);color:var(--ok)}
+.sn:disabled{opacity:.5;cursor:wait}
